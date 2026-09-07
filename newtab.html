@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Diagram</title>
+  <style>
+    body { margin: 0; height: 100vh; overflow: hidden; font-family: system-ui, sans-serif; }
+    .sidebar { width: 200px; background: #f5f5f7; border-right: 1px solid #ddd; display: flex; flex-direction: column; padding: 8px; }
+    .sidebar h3 { margin: 0 0 8px; font-size: 14px; }
+    .project-item { padding: 6px 10px; margin: 4px 0; background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .project-item:hover { background: #e2e8f0; }
+    .main { flex: 1; background: #fff; overflow: auto; padding: 20px; }
+    .toolbar { margin-bottom: 12px; }
+    .node-wrapper { min-height: 80px; background: #fff; border: 1px dashed #aaa; border-radius: 8px; padding: 12px; margin-bottom: 12px; position: relative; }
+    .node-label { font-weight: bold; margin-bottom: 4px; }
+    .node-meta { font-size: 12px; color: #666; }
+    .progress-bar { width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+    .progress-fill { height: 100%; background: #3b82f6; width: 0%; transition: width 0.2s; }
+  </style>
+</head>
+<body>
+  <div class="sidebar" id="sidebar">
+    <h3>Projects</h3>
+    <div id="project-list">Loading...</div>
+    <div id="new-project">+ New Project</div>
+  </div>
+  <div class="main" id="main">
+    <div class="toolbar">
+      <div id="toolbar-title">Canvas</div>
+    </div>
+    <div id="canvas-area">New project to start</div>
+  </body>
+  <script type="module" src="newtab.js"></script>
+</body>
+</html>
