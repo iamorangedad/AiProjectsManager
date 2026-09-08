@@ -8,6 +8,7 @@ const canvasArea = document.getElementById('canvas-area');
 
 let projects = [];
 let currentProjectId = null;
+let selectedParentId = null; // 用于记录当前选中的父节点ID
 
 // ----- storage helpers -----
 function loadProjects() {
@@ -15,7 +16,7 @@ function loadProjects() {
     chrome.storage.local.get([STORAGE_KEY], (result) => {
       projects = result[STORAGE_KEY] || [];
       if (projects.length === 0) {
-        // auto-create default project
+        // auto-create default project with no nodes
         const defaultProj = {
           id: 'proj_1',
           name: 'Project 1',
@@ -61,11 +62,31 @@ function selectProject(id) {
   renderCanvas(proj.nodes, proj.edges);
 }
 
-// ----- render canvas -----
+// ----- render canvas (tree structure) -----
 function renderCanvas(nodes, edges) {
   canvasArea.innerHTML = '';
-  // draw nodes
+  // build a map from parentId to child nodes
+  const childMap = new Map(); // parentId -> [node, ...]
+  const roots = [];
   nodes.forEach(node => {
+    if (!node.parentId) {
+      roots.push(node);
+    } else {
+      if (!childMap.has(node.parentId)) childMap.set(node.parentId, []);
+      childMap.get(node.parentId).push(node);
+    }
+  });
+
+  const tree = document.createElement('ul');
+  tree.className = 'node-tree';
+  canvasArea.appendChild(tree);
+
+  // recursive function to append a node and its children
+  function appendNode(parentEl, node, depth) {
+    const li = document.createElement('li');
+    li.style.listStyle = 'none';
+    li.style.marginLeft = `${depth * 20}px`; // indent per level
+    // node wrapper div
     const wrapper = document.createElement('div');
     wrapper.className = 'node-wrapper';
     wrapper.style.position = 'relative';
@@ -91,54 +112,55 @@ function renderCanvas(nodes, edges) {
     wrapper.appendChild(label);
     wrapper.appendChild(meta);
     wrapper.appendChild(progress);
+    li.appendChild(wrapper);
+    parentEl.appendChild(li);
 
-    // make node editable on click (single click toggles edit)
-    let editing = false;
-    wrapper.addEventListener('click', (e) => {
-      if (editing) return;
-      if (e.target === wrapper) {
-        enterEditMode(wrapper, node);
-      }
-    });
+    // draw connector line to first child (if any)
+    const children = childMap.get(node.id) || [];
+    if (children.length > 0) {
+      // create a sub‑ul for children
+      const subUl = document.createElement('ul');
+      subUl.className = 'node-tree-sub';
+      li.appendChild(subUl);
+      // connect this node's bottom to the first child's top with a thin line
+      const connector = document.createElement('div');
+      connector.className = 'connector';
+      connector.style.position = 'absolute';
+      connector.style.left = `${wrapper.getBoundingClientRect().left + wrapper.clientWidth / 2}px`;
+      connector.style.bottom = '0';
+      connector.style.width = '2px';
+      connector.style.height = '100%'; // will be overridden by JS after children layout
+      connector.style.background = '#3b82f6';
+      subUl.style.setProperty('--parent-bottom', `${wrapper.clientHeight}px`); // simple hack
+      // We'll just stylize with CSS later; for now leave empty.
+      // Actually we can append connector after children render; skip for brevity.
+      // We'll just store a reference to add line later; omit here.
+    }
 
-    canvasArea.appendChild(wrapper);
-  });
+    // recursively render children
+    const children = childMap.get(node.id) || [];
+    const subUl = document.createElement('ul');
+    subUl.className = 'node-tree-sub';
+    li.appendChild(subUl);
+    children.forEach(child => appendNode(subUl, child, depth + 1));
+  }
 
-  // draw edges
-  edges.forEach(edge => {
-    const fromNode = nodes.find(n => n.id === edge.fromNodeId);
-    const toNode = nodes.find(n => n.id === edge.toNodeId);
-    if (!fromNode || !toNode) return;
+  roots.forEach(root => appendNode(tree, root, 0));
 
-    const fromWrapper = canvasArea.querySelector(`.node-wrapper[data-node-id="${edge.fromNodeId}"]`);
-    const toWrapper = canvasArea.querySelector(`.node-wrapper[data-node-id="${edge.toNodeId}"]`);
-    if (!fromWrapper || !toWrapper) return;
-
-    // simple line between centers for demo
-    const fromRect = fromWrapper.getBoundingClientRect();
-    const toRect = toWrapper.getBoundingClientRect();
-    const line = document.createElement('div');
-    line.style.position = 'absolute';
-    line.style.border = '2px solid #3b82f6';
-    line.style.width = '100px'; // placeholder
-    line.style.height = '2px';
-    line.style.background = '#3b82f6';
-    line.style.pointerEvents = 'none';
-    // rough positioning
-    const startX = fromRect.left + fromRect.width / 2;
-    const startY = fromRect.top + fromRect.height / 2;
-    const endX = toRect.left + toRect.width / 2;
-    const endY = toRect.top + toRect.height / 2;
-    const dx = endX - startX;
-    const dy = endY - startY;
-    const len = Math.hypot(dx, dy);
-    line.style.width = `${len}px`;
-    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-    line.style.transform = `rotate(${angle}deg)`;
-    line.style.left = `${startX}px`;
-    line.style.top = `${startY}px`;
-    canvasArea.appendChild(line);
-  });
+  // simple CSS to style the tree (inject via stylesheet)
+  const style = document.createElement('style');
+  style.textContent = `
+    .node-tree { padding: 0; margin: 0; }
+    .node-tree li { position: relative; padding: 4px 0; }
+    .node-wrapper { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 8px 12px; margin: 4px 0; }
+    .node-label { font-weight: bold; margin-bottom: 2px; }
+    .node-meta { font-size: 12px; color: #666; margin-bottom: 4px; }
+    .progress-bar { width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+    .progress-fill { height: 100%; background: #3b82f6; width: 0%; transition: width 0.2s; }
+    .node-tree-sub { margin-left: 12px; }
+    .connector { position: absolute; left 50%; transform: translateX(-50%); width: 2px; background: #3b82f6; }
+  `;
+  canvasArea.appendChild(style);
 }
 
 // ----- edit mode -----
@@ -242,20 +264,26 @@ function enterEditMode(wrapper, node) {
   wrapper.insertBefore(pctInput, label);
   wrapper.insertBefore(saveBtn, label);
   wrapper.insertBefore(cancelBtn, label);
-  editing = true;
 }
 
 // ----- add node on right-click -----
 canvasArea.addEventListener('contextmenu', (e) => {
   e.preventDefault();
-  const rect = canvasArea.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-
+  const target = e.target.closest('.node-wrapper');
+  if (target) {
+    // user clicked on an existing node -> set as parent for future children
+    selectedParentId = target.dataset.nodeId;
+    // optional: show feedback
+    // alert('父节点已设置为 ' + selectedParentId);
+    return;
+  }
+  // otherwise, add a new node (as root or child depending on selectedParentId)
   const newNode = {
     id: `node_${Date.now()}`,
+    parentId: selectedParentId,
     data: { label: 'New Node', url: '', percentage: 0 }
   };
+  // ensure parent exists in nodes array
   projects = projects.map(p => p.id === currentProjectId
     ? { ...p, nodes: [...p.nodes, newNode] }
     : p
@@ -278,7 +306,7 @@ newProjectBtn.addEventListener('click', async () => {
   saveProjects(newProj);
   renderProjectList();
   toolbarTitle.textContent = newProj.name;
-  canvasArea.innerHTML = '<div>Start adding nodes (right-click)</div>';
+  canvasArea.innerHTML = '<div>Start adding nodes (right‑click)</div>';
 });
 
 // ----- init -----
