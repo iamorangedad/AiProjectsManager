@@ -112,16 +112,16 @@ export default function ProjectSidebar({
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={onExport}
-                title="导出备份(防清洗)"
+                title="Export backup"
                 style={{ flex: 1, padding: '6px 6px', border: '1px solid #bee3f8', background: '#ebf8ff', borderRadius: 6, cursor: 'pointer', fontSize: 11, color: '#2b6cb0' }}
               >
-                ⤓ 导出
+                ⤓ Export
               </button>
               <label
-                title="导入备份"
+                title="Import backup"
                 style={{ flex: 1, padding: '6px 6px', border: '1px solid #c6f6d5', background: '#f0fff4', borderRadius: 6, cursor: 'pointer', fontSize: 11, color: '#276749', textAlign: 'center' }}
               >
-                ⤒ 导入
+                ⤒ Import
                 <input
                   type="file"
                   accept=".json"
@@ -134,7 +134,7 @@ export default function ProjectSidebar({
                 />
               </label>
             </div>
-            <div style={{ fontSize: 10, color: '#a0aec0', lineHeight: 1.4, textAlign: 'center' }}>多重备份: local+IDB+sync·清洗可恢复</div>
+            <div style={{ fontSize: 10, color: '#a0aec0', lineHeight: 1.4, textAlign: 'center' }}>Backup: local + IDB + sync · auto-recovery</div>
           </div>
         </>
       )}

@@ -318,7 +318,7 @@ export default function CanvasPage() {
         onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
         onExport={() => {
           exportProjects()
-          showToast('已导出备份')
+          showToast('Backup exported')
         }}
         onImport={(file) => {
           const reader = new FileReader()
@@ -326,9 +326,9 @@ export default function CanvasPage() {
             try {
               const data = JSON.parse(String(reader.result))
               importProjects(data)
-              showToast('导入成功·已多重备份')
+              showToast('Import successful')
             } catch {
-              showToast('导入失败:文件格式错误')
+              showToast('Import failed: invalid file')
             }
           }
           reader.readAsText(file)
@@ -342,7 +342,7 @@ export default function CanvasPage() {
             <span style={{ fontSize: 12, color: '#718096' }}>
               {displayNodes.length} visible · {hiddenCount > 0 ? `${hiddenCount} hidden · ` : ''}{edges.length} edges
             </span>
-            <span title="四重存储: chrome.local + IndexedDB + chrome.sync + localStorage, 清洗自动恢复" style={{ fontSize: 10, color: '#38a169', border: '1px solid #c6f6d5', background: '#f0fff4', padding: '2px 6px', borderRadius: 99 }}>● 已持久化防清洗</span>
+            <span title="Quad storage: chrome.local + IndexedDB + chrome.sync + localStorage, auto-recovery" style={{ fontSize: 10, color: '#38a169', border: '1px solid #c6f6d5', background: '#f0fff4', padding: '2px 6px', borderRadius: 99 }}>● Persisted</span>
             {hiddenCount > 0 && (
               <button
                 onClick={() => setCollapsedIds(new Set())}
