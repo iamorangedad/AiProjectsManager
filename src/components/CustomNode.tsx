@@ -25,8 +25,8 @@ export default function CustomNode({ data, selected }: NodeProps) {
         position: 'relative',
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ width: 8, height: 8, background: '#3182ce' }} />
-      <Handle type="source" position={Position.Right} style={{ width: 8, height: 8, background: '#3182ce' }} />
+      <Handle type="target" position={Position.Left} style={{ width: 10, height: 10, background: '#3182ce', zIndex: 10 }} />
+      <Handle type="source" position={Position.Right} style={{ width: 10, height: 10, background: '#3182ce', zIndex: 10 }} />
       {d.hasChildren && (
         <button
           onClick={(e) => {
@@ -36,18 +36,17 @@ export default function CustomNode({ data, selected }: NodeProps) {
           title={d.isCollapsed ? 'Expand children' : 'Collapse children'}
           style={{
             position: 'absolute',
-            right: -10,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 20,
-            height: 20,
+            right: 6,
+            top: 6,
+            width: 18,
+            height: 18,
             borderRadius: '50%',
             border: '1px solid #3182ce',
             background: '#fff',
             color: '#3182ce',
-            fontSize: 13,
+            fontSize: 11,
             fontWeight: 700,
-            lineHeight: '18px',
+            lineHeight: '16px',
             textAlign: 'center',
             cursor: 'pointer',
             display: 'flex',
