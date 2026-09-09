@@ -17,6 +17,7 @@ export default function CanvasPage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as any)
   const [editingNode, setEditingNode] = useState<AppNode | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
+  const [edgeCtxMenu, setEdgeCtxMenu] = useState<{ x: number; y: number; edgeId: string } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const flowRef = useRef<HTMLDivElement>(null)
@@ -115,6 +116,24 @@ export default function CanvasPage() {
     [onNodesChange],
   )
 
+  const onEdgesChangeWrapped = useCallback(
+    (changes: any[]) => {
+      onEdgesChange(changes)
+      const removed = changes.filter((c: any) => c.type === 'remove')
+      if (removed.length > 0) {
+        setTimeout(() => {
+          setEdges((eds: any[]) => {
+            persist(nodes as any, eds as any)
+            return eds
+          })
+          if (removed.length === 1) showToast('Connection deleted')
+          else showToast(`${removed.length} connections deleted`)
+        }, 0)
+      }
+    },
+    [onEdgesChange, nodes, persist, setEdges],
+  )
+
   const onNodeClick = useCallback((_e: any, node: any) => {
     const clean = { label: node.data.label, url: node.data.url, percentage: node.data.percentage }
     setEditingNode({ id: node.id, type: node.type, position: node.position, data: clean as any })
@@ -196,6 +215,43 @@ export default function CanvasPage() {
       setTimeout(() => persist(nodes as any, edges as any), 0)
     },
     [nodes, edges, persist],
+  )
+
+  const deleteEdge = useCallback(
+    (edgeId: string) => {
+      setEdges((eds: any[]) => {
+        const next = eds.filter((e: any) => e.id !== edgeId)
+        setTimeout(() => persist(nodes as any, next as any), 0)
+        showToast('Connection deleted')
+        return next
+      })
+      setEdgeCtxMenu(null)
+    },
+    [nodes, persist, setEdges],
+  )
+
+  const onEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: any) => {
+      setEdgeCtxMenu({ x: _event.clientX, y: _event.clientY, edgeId: edge.id })
+    },
+    [],
+  )
+
+  const onEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: any) => {
+      event.preventDefault()
+      setEdgeCtxMenu({ x: event.clientX, y: event.clientY, edgeId: edge.id })
+    },
+    [],
+  )
+
+  const onDelete = useCallback(
+    ({ edges: deletedEdges }: { nodes: any[]; edges: any[] }) => {
+      if (deletedEdges.length > 0) {
+        showToast(deletedEdges.length === 1 ? 'Connection deleted' : `${deletedEdges.length} connections deleted`)
+      }
+    },
+    [],
   )
 
   const onNodeDragStop = useCallback(() => {
@@ -288,20 +344,27 @@ export default function CanvasPage() {
             nodes={displayNodes as any}
             edges={displayEdges as any}
             onNodesChange={onNodesChangeWrapped}
-            onEdgesChange={onEdgesChange}
+            onEdgesChange={onEdgesChangeWrapped}
             onConnect={onConnect}
             onInit={(inst) => (reactFlowInstance.current = inst)}
             onNodeClick={onNodeClick}
             onNodesDelete={onNodesDelete}
             onEdgesDelete={onEdgesDelete}
+            onEdgeClick={onEdgeClick}
+            onEdgeContextMenu={onEdgeContextMenu}
+            onDelete={onDelete}
             onNodeDragStop={onNodeDragStop}
             nodeTypes={nodeTypes}
             defaultEdgeOptions={{ markerEnd: arrowMarker, style: { stroke: '#3182ce', strokeWidth: 1.5 } }}
             connectionLineStyle={{ stroke: '#3182ce', strokeWidth: 1.5 }}
+            deleteKeyCode={['Backspace', 'Delete']}
             fitView
             fitViewOptions={{ padding: 0.2 }}
             proOptions={{ hideAttribution: true }}
-            onPaneClick={() => setCtxMenu(null)}
+            onPaneClick={() => {
+              setCtxMenu(null)
+              setEdgeCtxMenu(null)
+            }}
           >
             <Background />
             <Controls />
@@ -337,8 +400,40 @@ export default function CanvasPage() {
             </div>
           )}
 
+          {edgeCtxMenu && (
+            <div onClick={() => setEdgeCtxMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 20 }}>
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: 'fixed',
+                  left: edgeCtxMenu.x,
+                  top: edgeCtxMenu.y,
+                  background: '#fff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 8,
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                  overflow: 'hidden',
+                  zIndex: 21,
+                }}
+              >
+                <button
+                  onClick={() => deleteEdge(edgeCtxMenu.edgeId)}
+                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, textAlign: 'left', color: '#e53e3e' }}
+                >
+                  Delete connection
+                </button>
+                <button
+                  onClick={() => setEdgeCtxMenu(null)}
+                  style={{ display: 'block', width: '100%', padding: '8px 16px', border: 'none', borderTop: '1px solid #f0f0f0', background: '#fff', cursor: 'pointer', fontSize: 12, textAlign: 'left', color: '#718096' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           <div style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(255,255,255,0.92)', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#4a5568', pointerEvents: 'none' }}>
-            Right-click canvas → Add Node · Drag handles to connect · Click ∓ on source handle to collapse subtree · Click node to edit
+            Right-click canvas → Add Node · Click edge / press Del to delete connection · Click ∓ to collapse · Click node to edit
           </div>
         </div>
       </div>
