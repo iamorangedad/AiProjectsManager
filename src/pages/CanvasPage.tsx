@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, addEdge, type Connection, type NodeTypes } from '@xyflow/react'
+import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useStorage, type AppNode, type Project } from '../storage/useStorage'
 import CustomNode from '../components/CustomNode'
@@ -7,6 +7,8 @@ import ProjectSidebar from '../components/ProjectSidebar'
 import NodeEditor from '../components/NodeEditor'
 
 const nodeTypes: NodeTypes = { custom: CustomNode }
+
+const arrowMarker = { type: MarkerType.ArrowClosed, width: 18, height: 18, color: '#3182ce' } as const
 
 export default function CanvasPage() {
   const { projects, loaded, createProject, deleteProject, updateProject, renameProject } = useStorage()
@@ -42,6 +44,8 @@ export default function CanvasPage() {
       target: e.target,
       sourceHandle: e.sourceHandle,
       targetHandle: e.targetHandle,
+      markerEnd: arrowMarker,
+      style: { stroke: '#3182ce', strokeWidth: 1.5 },
     }))
     setNodes(flowNodes as any)
     setEdges(flowEdges as any)
@@ -77,7 +81,7 @@ export default function CanvasPage() {
   const onConnect = useCallback(
     (params: Connection) => {
       setEdges((eds) => {
-        const next = addEdge({ ...params, id: `e${Date.now()}` }, eds)
+        const next = addEdge({ ...params, id: `e${Date.now()}`, markerEnd: arrowMarker, style: { stroke: '#3182ce', strokeWidth: 1.5 } }, eds)
         setTimeout(() => persist((nodes as any), next as any), 0)
         showToast('Connected')
         return next
@@ -227,6 +231,8 @@ export default function CanvasPage() {
             onEdgesDelete={onEdgesDelete}
             onNodeDragStop={onNodeDragStop}
             nodeTypes={nodeTypes}
+            defaultEdgeOptions={{ markerEnd: arrowMarker, style: { stroke: '#3182ce', strokeWidth: 1.5 } }}
+            connectionLineStyle={{ stroke: '#3182ce', strokeWidth: 1.5 }}
             fitView
             fitViewOptions={{ padding: 0.2 }}
             proOptions={{ hideAttribution: true }}
