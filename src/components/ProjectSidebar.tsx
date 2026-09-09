@@ -9,6 +9,8 @@ export default function ProjectSidebar({
   onRename,
   onDelete,
   onToggleCollapse,
+  onExport,
+  onImport,
 }: {
   projects: Project[]
   activeId: string | null
@@ -18,6 +20,8 @@ export default function ProjectSidebar({
   onRename: (id: string, name: string) => void
   onDelete: (id: string) => void
   onToggleCollapse: () => void
+  onExport?: () => void
+  onImport?: (file: File) => void
 }) {
   return (
     <div
@@ -89,7 +93,7 @@ export default function ProjectSidebar({
               </div>
             ))}
           </div>
-          <div style={{ padding: 8, borderTop: '1px solid #e2e8f0' }}>
+          <div style={{ padding: 8, borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 6 }}>
             <button
               onClick={onCreate}
               style={{
@@ -105,6 +109,32 @@ export default function ProjectSidebar({
             >
               + Add Project
             </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={onExport}
+                title="导出备份(防清洗)"
+                style={{ flex: 1, padding: '6px 6px', border: '1px solid #bee3f8', background: '#ebf8ff', borderRadius: 6, cursor: 'pointer', fontSize: 11, color: '#2b6cb0' }}
+              >
+                ⤓ 导出
+              </button>
+              <label
+                title="导入备份"
+                style={{ flex: 1, padding: '6px 6px', border: '1px solid #c6f6d5', background: '#f0fff4', borderRadius: 6, cursor: 'pointer', fontSize: 11, color: '#276749', textAlign: 'center' }}
+              >
+                ⤒ 导入
+                <input
+                  type="file"
+                  accept=".json"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) onImport?.(f)
+                    e.currentTarget.value = ''
+                  }}
+                />
+              </label>
+            </div>
+            <div style={{ fontSize: 10, color: '#a0aec0', lineHeight: 1.4, textAlign: 'center' }}>多重备份: local+IDB+sync·清洗可恢复</div>
           </div>
         </>
       )}
