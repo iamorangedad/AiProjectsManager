@@ -1,3 +1,3 @@
-chrome.action.onClicked.addListener((tab) => {
-  chrome.tabs.create({ url: chrome.runtime.getURL('newtab.html') });
-});
+document.getElementById('openCanvas')?.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('newtab.html') })
+})

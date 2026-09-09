@@ -1,15 +1,28 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { copyFileSync } from 'node:fs'
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'copy-manifest',
+      closeBundle() {
+        try {
+          copyFileSync('manifest.json', 'dist/manifest.json')
+        } catch {}
+      },
+    },
+  ],
   base: './',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
-      input: 'newtab.html', // treat newtab.html as the entry point
+      input: {
+        newtab: 'newtab.html',
+        popup: 'popup.html',
+      },
     },
   },
 })
