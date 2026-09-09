@@ -13,6 +13,7 @@ A Chrome Extension (MV3) that replaces the New Tab page with a diagram canvas fo
 - **Collapse / Expand** — `−`/`+` on nodes with children hides/shows all descendants (BFS); header shows `visible / hidden / edges` and `Expand all`
 - **Resilient Persistence** — Quad-redundant storage survives browser data clearing (see below)
 - **Import / Export** — One-click JSON backup in sidebar
+<img width="1254" height="760" alt="image" src="https://github.com/user-attachments/assets/657c448e-a0c2-4752-bb5d-c883f7bb9846" />
 
 ## Tech Stack
 
