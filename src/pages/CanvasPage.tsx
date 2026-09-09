@@ -7,18 +7,18 @@ import ProjectSidebar from '../components/ProjectSidebar'
 import NodeEditor from '../components/NodeEditor'
 
 const nodeTypes: NodeTypes = { custom: CustomNode }
-
 const arrowMarker = { type: MarkerType.ArrowClosed, width: 18, height: 18, color: '#3182ce' } as const
 
 export default function CanvasPage() {
   const { projects, loaded, createProject, deleteProject, updateProject, renameProject } = useStorage()
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [collapsed, setCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [nodes, setNodes, onNodesChange] = useNodesState([] as any)
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as any)
   const [editingNode, setEditingNode] = useState<AppNode | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const flowRef = useRef<HTMLDivElement>(null)
   const reactFlowInstance = useRef<any>(null)
 
@@ -29,6 +29,24 @@ export default function CanvasPage() {
     if (!activeId && projects.length > 0) setActiveId(projects[0].id)
     if (activeId && !projects.find((p) => p.id === activeId) && projects.length > 0) setActiveId(projects[0].id)
   }, [loaded, projects, activeId])
+
+  useEffect(() => {
+    setCollapsedIds(new Set())
+  }, [activeId])
+
+  const toggleCollapse = useCallback((nodeId: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(nodeId)) {
+        next.delete(nodeId)
+        setTimeout(() => setToast('Expanded'), 0)
+      } else {
+        next.add(nodeId)
+        setTimeout(() => setToast('Collapsed'), 0)
+      }
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     if (!activeProject) return
@@ -58,7 +76,7 @@ export default function CanvasPage() {
         id: n.id,
         type: n.type || 'custom',
         position: n.position,
-        data: n.data,
+        data: { label: n.data.label, url: n.data.url, percentage: n.data.percentage },
       }))
       const toAppEdges = nextEdges.map((e: any) => ({
         id: e.id,
@@ -93,19 +111,13 @@ export default function CanvasPage() {
   const onNodesChangeWrapped = useCallback(
     (changes: any) => {
       onNodesChange(changes)
-      const hasPosition = changes.some((c: any) => c.type === 'position' && c.dragging === false)
-      if (hasPosition) {
-        setTimeout(() => {
-          const currentNodes = (document.querySelector('.react-flow') as any)?.__rfNodes
-          void currentNodes
-        }, 0)
-      }
     },
     [onNodesChange],
   )
 
   const onNodeClick = useCallback((_e: any, node: any) => {
-    setEditingNode({ id: node.id, type: node.type, position: node.position, data: node.data })
+    const clean = { label: node.data.label, url: node.data.url, percentage: node.data.percentage }
+    setEditingNode({ id: node.id, type: node.type, position: node.position, data: clean as any })
   }, [])
 
   const onPaneContextMenu = useCallback(
@@ -153,6 +165,11 @@ export default function CanvasPage() {
       const nextEdges = (edges as any).filter((e: any) => e.source !== id && e.target !== id)
       setNodes(nextNodes as any)
       setEdges(nextEdges as any)
+      setCollapsedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
       setTimeout(() => persist(nextNodes as any, nextEdges as any), 0)
       showToast('Node deleted')
     },
@@ -164,6 +181,11 @@ export default function CanvasPage() {
       const ids = new Set(deleted.map((n) => n.id))
       const nextEdges = (edges as any).filter((e: any) => !ids.has(e.source) && !ids.has(e.target))
       setEdges(nextEdges as any)
+      setCollapsedIds((prev) => {
+        const next = new Set(prev)
+        ids.forEach((id) => next.delete(id as string))
+        return next
+      })
       setTimeout(() => persist((nodes as any).filter((n: any) => !ids.has(n.id)), nextEdges as any), 0)
     },
     [nodes, edges, persist, setEdges],
@@ -183,6 +205,39 @@ export default function CanvasPage() {
     }, 0)
   }, [nodes, edges, persist])
 
+  const { displayNodes, displayEdges, hiddenCount } = useMemo(() => {
+    const adj = new Map<string, string[]>()
+    ;(edges as any[]).forEach((e: any) => {
+      if (!adj.has(e.source)) adj.set(e.source, [])
+      adj.get(e.source)!.push(e.target)
+    })
+    const hidden = new Set<string>()
+    const queue: string[] = [...collapsedIds]
+    const visited = new Set<string>(queue)
+    while (queue.length) {
+      const cur = queue.shift()!
+      const childs = adj.get(cur) || []
+      for (const child of childs) {
+        if (!hidden.has(child)) hidden.add(child)
+        if (!visited.has(child)) {
+          visited.add(child)
+          queue.push(child)
+        }
+      }
+    }
+    const filteredNodes = (nodes as any[]).filter((n: any) => !hidden.has(n.id))
+    const filteredEdges = (edges as any[]).filter((e: any) => !hidden.has(e.source) && !hidden.has(e.target))
+    const decorated = filteredNodes.map((n: any) => {
+      const hasChildren = (adj.get(n.id)?.length || 0) > 0
+      const isCollapsed = collapsedIds.has(n.id)
+      return {
+        ...n,
+        data: { ...n.data, hasChildren, isCollapsed, onToggle: () => toggleCollapse(n.id) },
+      }
+    })
+    return { displayNodes: decorated, displayEdges: filteredEdges, hiddenCount: hidden.size }
+  }, [nodes, edges, collapsedIds, toggleCollapse])
+
   if (!loaded) {
     return <div style={{ padding: 40, textAlign: 'center', color: '#718096' }}>Loading…</div>
   }
@@ -192,7 +247,7 @@ export default function CanvasPage() {
       <ProjectSidebar
         projects={projects}
         activeId={activeId}
-        collapsed={collapsed}
+        collapsed={sidebarCollapsed}
         onSelect={setActiveId}
         onCreate={() => {
           const p = createProject()
@@ -204,14 +259,24 @@ export default function CanvasPage() {
           deleteProject(id)
           showToast('Project deleted')
         }}
-        onToggleCollapse={() => setCollapsed((v) => !v)}
+        onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <div style={{ height: 44, borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px', background: '#fff' }}>
           <div style={{ fontWeight: 600, fontSize: 14, color: '#1a202c' }}>{activeProject?.name || '—'}</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: '#718096' }}>{nodes.length} nodes · {edges.length} edges</span>
+            <span style={{ fontSize: 12, color: '#718096' }}>
+              {displayNodes.length} visible · {hiddenCount > 0 ? `${hiddenCount} hidden · ` : ''}{edges.length} edges
+            </span>
+            {hiddenCount > 0 && (
+              <button
+                onClick={() => setCollapsedIds(new Set())}
+                style={{ padding: '4px 8px', background: '#edf2f7', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 11 }}
+              >
+                Expand all
+              </button>
+            )}
             <button onClick={() => addNodeAt(100, 100)} style={{ padding: '6px 12px', background: '#3182ce', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
               + Add Node
             </button>
@@ -220,8 +285,8 @@ export default function CanvasPage() {
 
         <div ref={flowRef} style={{ flex: 1, position: 'relative' }} onContextMenu={onPaneContextMenu}>
           <ReactFlow
-            nodes={nodes as any}
-            edges={edges as any}
+            nodes={displayNodes as any}
+            edges={displayEdges as any}
             onNodesChange={onNodesChangeWrapped}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
@@ -244,10 +309,7 @@ export default function CanvasPage() {
           </ReactFlow>
 
           {ctxMenu && (
-            <div
-              onClick={() => setCtxMenu(null)}
-              style={{ position: 'fixed', inset: 0, zIndex: 20 }}
-            >
+            <div onClick={() => setCtxMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 20 }}>
               <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
@@ -276,7 +338,7 @@ export default function CanvasPage() {
           )}
 
           <div style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(255,255,255,0.92)', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#4a5568', pointerEvents: 'none' }}>
-            Right-click canvas → Add Node · Drag handles to connect · Click node to edit · Esc to close
+            Right-click canvas → Add Node · Drag handles to connect · Click ∓ on source handle to collapse subtree · Click node to edit
           </div>
         </div>
       </div>

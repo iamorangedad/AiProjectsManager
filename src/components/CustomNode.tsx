@@ -4,6 +4,9 @@ export type CustomNodeData = {
   label: string
   url?: string
   percentage: number
+  hasChildren?: boolean
+  isCollapsed?: boolean
+  onToggle?: () => void
 }
 
 export default function CustomNode({ data, selected }: NodeProps) {
@@ -19,11 +22,46 @@ export default function CustomNode({ data, selected }: NodeProps) {
         padding: '12px 14px',
         boxShadow: selected ? '0 4px 12px rgba(49,130,206,0.18)' : '0 1px 4px rgba(0,0,0,0.07)',
         cursor: 'pointer',
+        position: 'relative',
       }}
     >
       <Handle type="target" position={Position.Left} style={{ width: 8, height: 8, background: '#3182ce' }} />
       <Handle type="source" position={Position.Right} style={{ width: 8, height: 8, background: '#3182ce' }} />
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#1a202c', wordBreak: 'break-word' }}>
+      {d.hasChildren && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            d.onToggle?.()
+          }}
+          title={d.isCollapsed ? 'Expand children' : 'Collapse children'}
+          style={{
+            position: 'absolute',
+            right: -10,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            border: '1px solid #3182ce',
+            background: '#fff',
+            color: '#3182ce',
+            fontSize: 13,
+            fontWeight: 700,
+            lineHeight: '18px',
+            textAlign: 'center',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            zIndex: 5,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+          }}
+        >
+          {d.isCollapsed ? '+' : '−'}
+        </button>
+      )}
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#1a202c', wordBreak: 'break-word', paddingRight: d.hasChildren ? 8 : 0 }}>
         {d.label || 'Unnamed'}
       </div>
       {d.url && (
