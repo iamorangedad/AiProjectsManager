@@ -5,8 +5,6 @@
   "description": "A chrome extension for creating diagram canvases with nodes, edges, and project management",
   "permissions": [
     "storage",
-    "tabs",
-    "activeTab",
     "unlimitedStorage"
   ],
   "chrome_url_overrides": {
