@@ -36,7 +36,7 @@ export default function ProjectSidebar({
         overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: collapsed ? '10px 8px' : '12px 12px', borderBottom: '1px solid #e6e8ee', borderTop: '3px solid #111827' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: collapsed ? '10px 8px' : '12px 12px', borderBottom: '1px solid #e6e8ee' }}>
         {!collapsed && <span style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#111827' }}>Projects</span>}
         <button
           onClick={onToggleCollapse}
