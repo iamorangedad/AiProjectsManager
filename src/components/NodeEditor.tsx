@@ -1,5 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import type { AppNode } from '../storage/useStorage'
+
+const fieldStyle: CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '8px 10px',
+  border: '1px solid #e2e8f0',
+  borderRadius: 8,
+  font: 'inherit',
+  fontSize: 13,
+  lineHeight: 1.45,
+  color: '#1a202c',
+  background: '#fff',
+  resize: 'vertical',
+}
 
 export default function NodeEditor({
   node,
@@ -12,17 +26,9 @@ export default function NodeEditor({
   onClose: () => void
   onDelete?: (id: string) => void
 }) {
-  const [label, setLabel] = useState('')
-  const [url, setUrl] = useState('')
-  const [pct, setPct] = useState(0)
-
-  useEffect(() => {
-    if (node) {
-      setLabel(node.data.label)
-      setUrl(node.data.url || '')
-      setPct(node.data.percentage)
-    }
-  }, [node])
+  const [label, setLabel] = useState(node?.data.label ?? '')
+  const [url, setUrl] = useState(node?.data.url ?? '')
+  const [pct, setPct] = useState(node?.data.percentage ?? 0)
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -34,40 +40,94 @@ export default function NodeEditor({
 
   if (!node) return null
 
+  const trimmedUrl = url.trim()
+  const openUrl = trimmedUrl ? (/^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`) : ''
+
   return (
-    <div
-      onClick={onClose}
+    <aside
       style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.28)',
+        width: 340,
+        flexShrink: 0,
+        borderLeft: '1px solid #e2e8f0',
+        background: '#f8fafc',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 50,
+        flexDirection: 'column',
+        minHeight: 0,
+        overflow: 'auto',
       }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: 360, background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 10px 30px rgba(0,0,0,0.18)' }}
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          padding: '12px 14px',
+          borderBottom: '1px solid #e2e8f0',
+          background: '#fff',
+        }}
       >
-        <h3 style={{ margin: '0 0 14px', fontSize: 15 }}>Edit Node</h3>
-        <label style={{ display: 'block', fontSize: 12, color: '#4a5568', marginBottom: 4 }}>Label</label>
-        <input
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="Node label"
-          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 12 }}
-        />
-        <label style={{ display: 'block', fontSize: 12, color: '#4a5568', marginBottom: 4 }}>URL (optional)</label>
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://example.com"
-          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 12 }}
-        />
-        <label style={{ display: 'block', fontSize: 12, color: '#4a5568', marginBottom: 4 }}>Progress: {pct}%</label>
-        <input type="range" min={0} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} style={{ width: '100%', marginBottom: 16 }} />
+        <div style={{ fontWeight: 600, fontSize: 14, color: '#1a202c' }}>Node details</div>
+        <button
+          onClick={onClose}
+          title="Close"
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            border: '1px solid #e2e8f0',
+            background: '#fff',
+            color: '#4a5568',
+            cursor: 'pointer',
+            fontSize: 16,
+            lineHeight: 1,
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#1a202c', lineHeight: 1.4, wordBreak: 'break-word' }}>
+          {label.trim() || 'Unnamed'}
+        </div>
+
+        {openUrl && (
+          <a
+            href={openUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{ fontSize: 13, color: '#3182ce', lineHeight: 1.45, wordBreak: 'break-all' }}
+          >
+            {openUrl}
+          </a>
+        )}
+
+        <div>
+          <div style={{ height: 6, background: '#e2e8f0', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#38a169' : '#3182ce' }} />
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12, color: '#718096' }}>{pct}% complete</div>
+        </div>
+
+        <label style={{ display: 'block' }}>
+          <div style={{ fontSize: 12, color: '#4a5568', marginBottom: 4 }}>Label</div>
+          <textarea value={label} rows={4} onChange={(e) => setLabel(e.target.value)} placeholder="Node label" style={{ ...fieldStyle, wordBreak: 'break-word' }} />
+        </label>
+
+        <label style={{ display: 'block' }}>
+          <div style={{ fontSize: 12, color: '#4a5568', marginBottom: 4 }}>URL</div>
+          <textarea value={url} rows={5} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" style={{ ...fieldStyle, wordBreak: 'break-all' }} />
+        </label>
+
+        <label style={{ display: 'block' }}>
+          <div style={{ fontSize: 12, color: '#4a5568', marginBottom: 4 }}>Progress: {pct}%</div>
+          <input type="range" min={0} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} style={{ width: '100%' }} />
+        </label>
+
         <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
           {onDelete && (
             <button
@@ -80,37 +140,19 @@ export default function NodeEditor({
               Delete
             </button>
           )}
-          <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-            <button onClick={onClose} style={{ padding: '8px 14px', background: '#edf2f7', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                const trimmed = label.trim() || 'Unnamed'
-                let normalizedUrl: string | undefined = url.trim() || undefined
-                if (normalizedUrl && !/^https?:\/\//i.test(normalizedUrl)) normalizedUrl = `https://${normalizedUrl}`
-                onSave({ ...node, data: { label: trimmed, url: normalizedUrl, percentage: pct } })
-                onClose()
-              }}
-              style={{ padding: '8px 14px', background: '#3182ce', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}
-            >
-              Save
-            </button>
-          </div>
-        </div>
-        {url.trim() && (
           <button
             onClick={() => {
-              let u = url.trim()
-              if (!/^https?:\/\//i.test(u)) u = `https://${u}`
-              window.open(u, '_blank')
+              const trimmed = label.trim() || 'Unnamed'
+              let normalizedUrl: string | undefined = url.trim() || undefined
+              if (normalizedUrl && !/^https?:\/\//i.test(normalizedUrl)) normalizedUrl = `https://${normalizedUrl}`
+              onSave({ ...node, data: { label: trimmed, url: normalizedUrl, percentage: pct } })
             }}
-            style={{ marginTop: 10, fontSize: 12, color: '#3182ce', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+            style={{ marginLeft: 'auto', padding: '8px 14px', background: '#3182ce', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}
           >
-            Open URL ↗
+            Save
           </button>
-        )}
+        </div>
       </div>
-    </div>
+    </aside>
   )
 }

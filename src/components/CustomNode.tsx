@@ -9,17 +9,23 @@ export type CustomNodeData = {
   onToggle?: () => void
 }
 
+const NODE_WIDTH = 200
+const NODE_HEIGHT = 76
+
 export default function CustomNode({ data, selected }: NodeProps) {
   const d = data as unknown as CustomNodeData
   const pct = Math.max(0, Math.min(100, d.percentage ?? 0))
   return (
     <div
       style={{
-        minWidth: 180,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+        boxSizing: 'border-box',
+        overflow: 'hidden',
         background: selected ? '#f0f7ff' : '#fff',
         border: `1.5px solid ${selected ? '#3182ce' : '#e2e8f0'}`,
         borderRadius: 10,
-        padding: '12px 14px',
+        padding: '10px 12px',
         boxShadow: selected ? '0 4px 12px rgba(49,130,206,0.18)' : '0 1px 4px rgba(0,0,0,0.07)',
         cursor: 'pointer',
         position: 'relative',
@@ -60,20 +66,21 @@ export default function CustomNode({ data, selected }: NodeProps) {
           {d.isCollapsed ? '+' : '−'}
         </button>
       )}
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#1a202c', wordBreak: 'break-word', paddingRight: d.hasChildren ? 8 : 0 }}>
+      <div
+        title={d.label || 'Unnamed'}
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: '#1a202c',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          paddingRight: d.hasChildren ? 16 : 0,
+          lineHeight: '18px',
+        }}
+      >
         {d.label || 'Unnamed'}
       </div>
-      {d.url && (
-        <a
-          href={d.url}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          style={{ fontSize: 11, color: '#3182ce', wordBreak: 'break-all', display: 'block', marginTop: 4 }}
-        >
-          {d.url}
-        </a>
-      )}
       <div style={{ marginTop: 8 }}>
         <div style={{ height: 6, background: '#edf2f7', borderRadius: 99, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#38a169' : '#3182ce', transition: 'width 0.2s' }} />
