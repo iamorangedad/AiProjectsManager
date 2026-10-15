@@ -77,7 +77,7 @@ export default function NodeEditor({
           gap: 8,
           padding: '12px 14px',
           borderBottom: '1px solid #e6e8ee',
-          borderTop: '3px solid #2563eb',
+          borderTop: `3px solid ${pct >= 100 ? '#16a34a' : '#2563eb'}`,
           background: '#fff',
         }}
       >
@@ -119,7 +119,7 @@ export default function NodeEditor({
 
         <div>
           <div style={{ height: 4, background: '#eef1f4', borderRadius: 99, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, background: pct >= 100 ? '#f97316' : '#2563eb' }} />
+            <div style={{ height: '100%', width: `${pct}%`, background: pct >= 100 ? '#16a34a' : '#2563eb' }} />
           </div>
           <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#6b7280' }}>{pct}% complete</div>
         </div>
@@ -136,7 +136,7 @@ export default function NodeEditor({
 
         <label style={{ display: 'block' }}>
           <div style={labelStyle}>Progress: {pct}%</div>
-          <input type="range" min={0} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} style={{ width: '100%', accentColor: pct >= 100 ? '#f97316' : '#2563eb' }} />
+          <input type="range" min={0} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} style={{ width: '100%', accentColor: pct >= 100 ? '#16a34a' : '#2563eb' }} />
         </label>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>

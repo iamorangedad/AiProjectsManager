@@ -15,7 +15,7 @@ const NODE_HEIGHT = 76
 export default function CustomNode({ data, selected }: NodeProps) {
   const d = data as unknown as CustomNodeData
   const pct = Math.max(0, Math.min(100, d.percentage ?? 0))
-  const accent = selected ? '#2563eb' : pct >= 100 ? '#f97316' : '#111827'
+  const accent = pct >= 100 ? '#16a34a' : '#2563eb'
   return (
     <div
       style={{
