@@ -172,6 +172,7 @@ export default function CanvasPage() {
     (updated: AppNode) => {
       const nextNodes = (nodes as any).map((n: any) => (n.id === updated.id ? { ...n, data: updated.data } : n))
       setNodes(nextNodes as any)
+      setEditingNode(updated)
       setTimeout(() => persist(nextNodes as any, edges as any), 0)
       showToast('Saved')
     },
@@ -198,6 +199,7 @@ export default function CanvasPage() {
   const onNodesDelete = useCallback(
     (deleted: any[]) => {
       const ids = new Set(deleted.map((n) => n.id))
+      setEditingNode((cur) => (cur && ids.has(cur.id) ? null : cur))
       const nextEdges = (edges as any).filter((e: any) => !ids.has(e.source) && !ids.has(e.target))
       setEdges(nextEdges as any)
       setCollapsedIds((prev) => {
@@ -304,7 +306,10 @@ export default function CanvasPage() {
         projects={projects}
         activeId={activeId}
         collapsed={sidebarCollapsed}
-        onSelect={setActiveId}
+        onSelect={(id) => {
+          setActiveId(id)
+          setEditingNode(null)
+        }}
         onCreate={() => {
           const p = createProject()
           setActiveId(p.id)
@@ -313,6 +318,7 @@ export default function CanvasPage() {
         onRename={renameProject}
         onDelete={(id) => {
           deleteProject(id)
+          setEditingNode(null)
           showToast('Project deleted')
         }}
         onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
@@ -335,7 +341,7 @@ export default function CanvasPage() {
         }}
       />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
         <div style={{ height: 44, borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px', background: '#fff' }}>
           <div style={{ fontWeight: 600, fontSize: 14, color: '#1a202c' }}>{activeProject?.name || '—'}</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -357,7 +363,8 @@ export default function CanvasPage() {
           </div>
         </div>
 
-        <div ref={flowRef} style={{ flex: 1, position: 'relative' }} onContextMenu={onPaneContextMenu}>
+        <div style={{ flex: 1, display: 'flex', minWidth: 0, minHeight: 0 }}>
+        <div ref={flowRef} style={{ flex: 1, position: 'relative', minWidth: 0 }} onContextMenu={onPaneContextMenu}>
           <ReactFlow
             nodes={displayNodes as any}
             edges={displayEdges as any}
@@ -382,6 +389,7 @@ export default function CanvasPage() {
             onPaneClick={() => {
               setCtxMenu(null)
               setEdgeCtxMenu(null)
+              setEditingNode(null)
             }}
           >
             <Background />
@@ -451,12 +459,12 @@ export default function CanvasPage() {
           )}
 
           <div style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(255,255,255,0.92)', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#4a5568', pointerEvents: 'none' }}>
-            Right-click canvas → Add Node · Click edge / press Del to delete connection · Click ∓ to collapse · Click node to edit
+            Right-click canvas → Add Node · Click a node to open details on the right · Click edge / press Del to delete connection
           </div>
         </div>
+        <NodeEditor key={editingNode?.id ?? 'none'} node={editingNode} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} />
+        </div>
       </div>
-
-      <NodeEditor node={editingNode} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} />
 
       {toast && (
         <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#1a202c', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, zIndex: 60 }}>
