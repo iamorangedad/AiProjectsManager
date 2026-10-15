@@ -12,7 +12,7 @@ const arrowMarker = { type: MarkerType.ArrowClosed, width: 16, height: 16, color
 const edgeStyle = { stroke: EDGE, strokeWidth: 1.25 }
 
 export default function CanvasPage() {
-  const { projects, loaded, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
+  const { projects, loaded, writable, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [nodes, setNodes, onNodesChange] = useNodesState([] as any)
@@ -24,8 +24,14 @@ export default function CanvasPage() {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const flowRef = useRef<HTMLDivElement>(null)
   const reactFlowInstance = useRef<any>(null)
+  const flowHydrated = useRef(false)
+  const fittedProjectId = useRef<string | null>(null)
 
   const activeProject = useMemo(() => projects.find((p) => p.id === activeId) || null, [projects, activeId])
+  const projectSyncKey = activeProject
+    ? `${activeProject.id}|${activeProject.nodes.map((n) => n.id).join(',')}|${activeProject.edges.map((e) => `${e.id}:${e.source}:${e.target}`).join(',')}`
+    : ''
+  const expectedNodeIds = activeProject ? activeProject.nodes.map((n) => n.id).join(',') : ''
 
   useEffect(() => {
     if (!loaded) return
@@ -52,12 +58,16 @@ export default function CanvasPage() {
   }, [])
 
   useEffect(() => {
-    if (!activeProject) return
+    if (!loaded || !activeProject) {
+      flowHydrated.current = false
+      return
+    }
+    flowHydrated.current = false
     const flowNodes = activeProject.nodes.map((n) => ({
       id: n.id,
-      type: 'custom',
-      position: n.position,
-      data: n.data as any,
+      type: n.type || 'custom',
+      position: n.position && typeof n.position.x === 'number' ? n.position : { x: 0, y: 0 },
+      data: n.data ?? { label: 'Unnamed', percentage: 0 },
     }))
     const flowEdges = activeProject.edges.map((e) => ({
       id: e.id,
@@ -70,11 +80,29 @@ export default function CanvasPage() {
     }))
     setNodes(flowNodes as any)
     setEdges(flowEdges as any)
-  }, [activeProject?.id])
+    flowHydrated.current = true
+  }, [loaded, projectSyncKey])
+
+  const flowNodeKey = (nodes as any[]).map((n) => n.id).join(',')
+  useEffect(() => {
+    if (!activeId || !flowHydrated.current || !expectedNodeIds || flowNodeKey !== expectedNodeIds) return
+    if (fittedProjectId.current === activeId) return
+    const frame = requestAnimationFrame(() => {
+      reactFlowInstance.current?.fitView?.({ padding: 0.2 })
+    })
+    const timer = window.setTimeout(() => {
+      reactFlowInstance.current?.fitView?.({ padding: 0.2 })
+      fittedProjectId.current = activeId
+    }, 60)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [activeId, expectedNodeIds, flowNodeKey])
 
   const persist = useCallback(
     (nextNodes: any[], nextEdges: any[]) => {
-      if (!activeId || !activeProject) return
+      if (!flowHydrated.current || !activeId || !activeProject) return
       const toAppNodes: AppNode[] = nextNodes.map((n: any) => ({
         id: n.id,
         type: n.type || 'custom',
@@ -350,7 +378,7 @@ export default function CanvasPage() {
             <span style={{ fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#6b7280' }}>
               {displayNodes.length} visible · {hiddenCount > 0 ? `${hiddenCount} hidden · ` : ''}{edges.length} edges
             </span>
-            <span title="Quad storage: chrome.local + IndexedDB + chrome.sync + localStorage, auto-recovery" style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#111827', border: '1px solid #e6e8ee', background: '#fff', padding: '3px 7px', borderRadius: 999 }}>Persisted</span>
+            <span title={writable ? 'Quad storage: chrome.local + IndexedDB + chrome.sync + localStorage, auto-recovery' : 'A saved copy could not be read, so nothing was overwritten'} style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: writable ? '#111827' : '#f97316', border: `1px solid ${writable ? '#e6e8ee' : '#fdba74'}`, background: '#fff', padding: '3px 7px', borderRadius: 999 }}>{writable ? 'Persisted' : 'Not saved'}</span>
             {hiddenCount > 0 && (
               <button
                 onClick={() => setCollapsedIds(new Set())}

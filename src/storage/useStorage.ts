@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { idbGet, idbSet, requestPersistent } from './idb'
+import { pickSnapshot, type Snapshot } from './pickSnapshot'
 
 const STORAGE_KEY = 'projects'
 const META_KEY = 'projects_meta_ts'
@@ -15,6 +16,7 @@ declare const chrome: {
       set: (v: Record<string, unknown>, cb?: () => void) => void
     }
   }
+  runtime?: { lastError?: { message?: string } }
 }
 
 function hasChromeLocal() {
@@ -46,14 +48,35 @@ export interface Project {
   edges: AppEdge[]
 }
 
-function lsGet(): { data: Project[] | null; ts: number } {
+function asProjects(value: unknown): Project[] | null {
+  if (!Array.isArray(value)) return null
+  const projects: Project[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return null
+    const project = item as Project
+    if (typeof project.id !== 'string' || typeof project.name !== 'string' || !Array.isArray(project.nodes) || !Array.isArray(project.edges)) return null
+    projects.push({
+      ...project,
+      nodes: project.nodes.flatMap((node) => {
+        if (!node || typeof node.id !== 'string') return []
+        const position = node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number' ? node.position : { x: 0, y: 0 }
+        return [{ ...node, position }]
+      }),
+      edges: project.edges.filter((edge) => edge && typeof edge.id === 'string' && typeof edge.source === 'string' && typeof edge.target === 'string'),
+    })
+  }
+  return projects
+}
+
+function lsGet(): Snapshot<Project> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const tsRaw = localStorage.getItem(META_KEY)
-    if (!raw) return { data: null, ts: 0 }
-    return { data: JSON.parse(raw) as Project[], ts: tsRaw ? Number(tsRaw) : 0 }
+    if (!raw) return { data: null, ts: 0, ok: true }
+    const data = asProjects(JSON.parse(raw))
+    return { data, ts: tsRaw ? Number(tsRaw) : 0, ok: data !== null || raw === 'null' }
   } catch {
-    return { data: null, ts: 0 }
+    return { data: null, ts: 0, ok: false }
   }
 }
 
@@ -64,18 +87,20 @@ function lsSet(projects: Project[]) {
   } catch {}
 }
 
-function chromeGetLocal(): Promise<{ data: Project[] | null; ts: number }> {
+function chromeGet(area: 'local' | 'sync'): Promise<Snapshot<Project>> {
   return new Promise((resolve) => {
-    if (!hasChromeLocal()) return resolve({ data: null, ts: 0 })
+    const storage = area === 'local' ? (hasChromeLocal() ? chrome.storage.local : null) : hasChromeSync() ? chrome.storage.sync : null
+    if (!storage) return resolve({ data: null, ts: 0, ok: true })
     try {
-      chrome.storage.local.get([STORAGE_KEY, META_KEY], (r) => {
-        const data = r[STORAGE_KEY] as Project[] | undefined
-        const ts = (r[META_KEY] as number) || 0
-        if (!data || !Array.isArray(data)) resolve({ data: null, ts: 0 })
-        else resolve({ data, ts })
+      storage.get([STORAGE_KEY, META_KEY], (r) => {
+        if (chrome.runtime?.lastError) return resolve({ data: null, ts: 0, ok: false })
+        const data = asProjects(r?.[STORAGE_KEY])
+        const ts = (r?.[META_KEY] as number) || 0
+        const raw = r?.[STORAGE_KEY]
+        resolve({ data, ts, ok: data !== null || raw == null })
       })
     } catch {
-      resolve({ data: null, ts: 0 })
+      resolve({ data: null, ts: 0, ok: false })
     }
   })
 }
@@ -85,22 +110,6 @@ function chromeSetLocal(projects: Project[]) {
   try {
     chrome.storage.local.set({ [STORAGE_KEY]: projects, [META_KEY]: Date.now() })
   } catch {}
-}
-
-function chromeGetSync(): Promise<{ data: Project[] | null; ts: number }> {
-  return new Promise((resolve) => {
-    if (!hasChromeSync()) return resolve({ data: null, ts: 0 })
-    try {
-      chrome.storage.sync!.get([STORAGE_KEY, META_KEY], (r) => {
-        const data = r[STORAGE_KEY] as Project[] | undefined
-        const ts = (r[META_KEY] as number) || 0
-        if (!data || !Array.isArray(data)) resolve({ data: null, ts: 0 })
-        else resolve({ data, ts })
-      })
-    } catch {
-      resolve({ data: null, ts: 0 })
-    }
-  })
 }
 
 function chromeSetSync(projects: Project[]) {
@@ -113,27 +122,20 @@ function chromeSetSync(projects: Project[]) {
   } catch {}
 }
 
-function pickBest(candidates: Array<{ data: Project[] | null; ts: number; src: string }>): Project[] | null {
-  const valid = candidates.filter((c) => c.data && Array.isArray(c.data) && c.data.length > 0) as Array<{ data: Project[]; ts: number; src: string }>
-  if (valid.length === 0) return null
-  valid.sort((a, b) => {
-    if (b.ts !== a.ts) return b.ts - a.ts
-    const al = a.data.reduce((s, p) => s + p.nodes.length + p.edges.length, 0)
-    const bl = b.data.reduce((s, p) => s + p.nodes.length + p.edges.length, 0)
-    return bl - al
-  })
-  return valid[0].data
+async function readIdb(): Promise<Snapshot<Project>> {
+  try {
+    const saved = await idbGet()
+    if (!saved) return { data: null, ts: 0, ok: true }
+    const data = asProjects(saved.data)
+    return { data, ts: saved.ts, ok: data !== null }
+  } catch {
+    return { data: null, ts: 0, ok: false }
+  }
 }
 
-async function loadBest(): Promise<Project[] | null> {
-  const [local, sync, idb, ls] = await Promise.all([chromeGetLocal(), chromeGetSync(), idbGet().then((r) => (r ? { data: r.data as Project[], ts: r.ts } : { data: null, ts: 0 })), Promise.resolve(lsGet())])
-  const best = pickBest([
-    { data: local.data, ts: local.ts, src: 'local' },
-    { data: sync.data, ts: sync.ts, src: 'sync' },
-    { data: idb.data as Project[] | null, ts: idb.ts, src: 'idb' },
-    { data: ls.data, ts: ls.ts, src: 'ls' },
-  ])
-  return best
+async function loadBest(): Promise<{ projects: Project[] | null; readsOk: boolean }> {
+  const [local, sync, idb, ls] = await Promise.all([chromeGet('local'), chromeGet('sync'), readIdb(), Promise.resolve(lsGet())])
+  return pickSnapshot([local, sync, idb, ls])
 }
 
 function persistAll(projects: Project[]) {
@@ -154,21 +156,30 @@ function validateProjects(raw: unknown): Project[] | null {
 export function useStorage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [writable, setWritable] = useState(true)
   const loadedRef = useRef(false)
+  const canWrite = useRef(false)
 
   useEffect(() => {
     void requestPersistent()
     let cancelled = false
     void (async () => {
-      const best = await loadBest()
+      let loadedSnapshot = await loadBest()
+      if (!loadedSnapshot.readsOk) {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        if (cancelled) return
+        loadedSnapshot = await loadBest()
+      }
       if (cancelled) return
+      const { projects: best, readsOk } = loadedSnapshot
+      canWrite.current = readsOk
+      setWritable(readsOk)
       if (best && best.length > 0) {
         setProjects(best)
-        persistAll(best)
+        if (readsOk) persistAll(best)
       } else {
         const init: Project = { id: 'p1', name: 'Project 1', nodes: [], edges: [] }
         setProjects([init])
-        persistAll([init])
       }
       loadedRef.current = true
       setLoaded(true)
@@ -180,6 +191,7 @@ export function useStorage() {
 
   const persist = useCallback((next: Project[]) => {
     setProjects(next)
+    if (!canWrite.current) return
     persistAll(next)
   }, [])
 
@@ -248,5 +260,5 @@ export function useStorage() {
     [persist],
   )
 
-  return { projects, loaded, setProjects: persist, addProject, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects }
+  return { projects, loaded, writable, setProjects: persist, addProject, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects }
 }
