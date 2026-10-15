@@ -11,6 +11,7 @@ function chromeExtension(): Plugin {
     },
     closeBundle() {
       copyFileSync('manifest.json', 'dist/manifest.json')
+      copyFileSync('background.js', 'dist/background.js')
       mkdirSync('dist/icons', { recursive: true })
       for (const file of readdirSync('icons')) {
         if (!file.endsWith('.png')) continue
@@ -32,7 +33,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         newtab: 'newtab.html',
-        popup: 'popup.html',
       },
     },
   },

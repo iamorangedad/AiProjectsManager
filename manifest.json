@@ -14,12 +14,11 @@
     "storage",
     "unlimitedStorage"
   ],
-  "chrome_url_overrides": {
-    "newtab": "newtab.html"
+  "background": {
+    "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Canvas Diagram Tool",
-    "default_popup": "popup.html",
+    "default_title": "Open Canvas",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
