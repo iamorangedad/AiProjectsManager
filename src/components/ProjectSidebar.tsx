@@ -28,20 +28,20 @@ export default function ProjectSidebar({
       style={{
         width: collapsed ? 48 : 220,
         flexShrink: 0,
-        borderRight: '1px solid #e2e8f0',
-        background: '#f7fafc',
+        borderRight: '1px solid #e6e8ee',
+        background: '#fff',
         display: 'flex',
         flexDirection: 'column',
         transition: 'width 0.2s',
         overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: collapsed ? '12px 8px' : '14px 12px', borderBottom: '1px solid #e2e8f0' }}>
-        {!collapsed && <span style={{ fontWeight: 700, fontSize: 13, color: '#1a202c' }}>Projects</span>}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: collapsed ? '10px 8px' : '12px 12px', borderBottom: '1px solid #e6e8ee', borderTop: '3px solid #111827' }}>
+        {!collapsed && <span style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#111827' }}>Projects</span>}
         <button
           onClick={onToggleCollapse}
           title={collapsed ? 'Expand' : 'Collapse'}
-          style={{ width: 28, height: 28, border: '1px solid #e2e8f0', background: '#fff', borderRadius: 6, cursor: 'pointer' }}
+          style={{ width: 28, height: 28, border: '1px solid #e6e8ee', background: '#fff', borderRadius: 8, cursor: 'pointer', color: '#111827' }}
         >
           {collapsed ? '›' : '‹'}
         </button>
@@ -59,14 +59,16 @@ export default function ProjectSidebar({
                   alignItems: 'center',
                   gap: 6,
                   padding: '8px 10px',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   marginBottom: 4,
-                  background: activeId === p.id ? '#ebf4ff' : 'transparent',
-                  border: activeId === p.id ? '1px solid #bee3f8' : '1px solid transparent',
+                  background: '#fff',
+                  border: '1px solid #e6e8ee',
+                  borderLeft: activeId === p.id ? '3px solid #2563eb' : '1px solid #e6e8ee',
+                  boxShadow: activeId === p.id ? '0 1px 2px rgba(17,24,39,0.05)' : 'none',
                   cursor: 'pointer',
                 }}
               >
-                <span style={{ flex: 1, fontSize: 13, color: '#2d3748', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: activeId === p.id ? 700 : 500, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {p.name}
                 </span>
                 <button
@@ -75,7 +77,7 @@ export default function ProjectSidebar({
                     const name = prompt('Rename project', p.name)
                     if (name && name.trim()) onRename(p.id, name.trim())
                   }}
-                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: '#718096' }}
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: '#6b7280' }}
                   title="Rename"
                 >
                   ✎
@@ -85,7 +87,7 @@ export default function ProjectSidebar({
                     e.stopPropagation()
                     if (confirm(`Delete "${p.name}"?`)) onDelete(p.id)
                   }}
-                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: '#e53e3e' }}
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: '#f97316' }}
                   title="Delete"
                 >
                   ×
@@ -93,18 +95,19 @@ export default function ProjectSidebar({
               </div>
             ))}
           </div>
-          <div style={{ padding: 8, borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ padding: 8, borderTop: '1px solid #e6e8ee', display: 'flex', flexDirection: 'column', gap: 6 }}>
             <button
               onClick={onCreate}
               style={{
                 width: '100%',
                 padding: '8px 10px',
-                border: '1px dashed #a0aec0',
-                background: '#fff',
+                border: 'none',
+                background: '#111827',
                 borderRadius: 8,
                 cursor: 'pointer',
-                fontSize: 13,
-                color: '#2d3748',
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#fff',
               }}
             >
               + Add Project
@@ -113,13 +116,13 @@ export default function ProjectSidebar({
               <button
                 onClick={onExport}
                 title="Export backup"
-                style={{ flex: 1, padding: '6px 6px', border: '1px solid #bee3f8', background: '#ebf8ff', borderRadius: 6, cursor: 'pointer', fontSize: 11, color: '#2b6cb0' }}
+                style={{ flex: 1, padding: '6px 6px', border: '1px solid #e6e8ee', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#111827' }}
               >
                 ⤓ Export
               </button>
               <label
                 title="Import backup"
-                style={{ flex: 1, padding: '6px 6px', border: '1px solid #c6f6d5', background: '#f0fff4', borderRadius: 6, cursor: 'pointer', fontSize: 11, color: '#276749', textAlign: 'center' }}
+                style={{ flex: 1, padding: '6px 6px', border: '1px solid #e6e8ee', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#111827', textAlign: 'center' }}
               >
                 ⤒ Import
                 <input
@@ -134,7 +137,7 @@ export default function ProjectSidebar({
                 />
               </label>
             </div>
-            <div style={{ fontSize: 10, color: '#a0aec0', lineHeight: 1.4, textAlign: 'center' }}>Backup: local + IDB + sync · auto-recovery</div>
+            <div style={{ fontSize: 10, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#6b7280', lineHeight: 1.4, textAlign: 'center' }}>Backup · local + IDB + sync</div>
           </div>
         </>
       )}

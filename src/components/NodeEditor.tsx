@@ -5,14 +5,24 @@ const fieldStyle: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
   padding: '8px 10px',
-  border: '1px solid #e2e8f0',
-  borderRadius: 8,
+  border: '1px solid #e6e8ee',
+  borderRadius: 10,
   font: 'inherit',
   fontSize: 13,
   lineHeight: 1.45,
-  color: '#1a202c',
+  color: '#111827',
   background: '#fff',
   resize: 'vertical',
+  outline: 'none',
+}
+
+const labelStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  color: '#6b7280',
+  marginBottom: 6,
 }
 
 export default function NodeEditor({
@@ -48,8 +58,8 @@ export default function NodeEditor({
       style={{
         width: 340,
         flexShrink: 0,
-        borderLeft: '1px solid #e2e8f0',
-        background: '#f8fafc',
+        borderLeft: '1px solid #e6e8ee',
+        background: '#fff',
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
@@ -66,11 +76,12 @@ export default function NodeEditor({
           justifyContent: 'space-between',
           gap: 8,
           padding: '12px 14px',
-          borderBottom: '1px solid #e2e8f0',
+          borderBottom: '1px solid #e6e8ee',
+          borderTop: '3px solid #2563eb',
           background: '#fff',
         }}
       >
-        <div style={{ fontWeight: 600, fontSize: 14, color: '#1a202c' }}>Node details</div>
+        <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#111827' }}>Node details</div>
         <button
           onClick={onClose}
           title="Close"
@@ -78,9 +89,9 @@ export default function NodeEditor({
             width: 28,
             height: 28,
             borderRadius: 8,
-            border: '1px solid #e2e8f0',
+            border: '1px solid #e6e8ee',
             background: '#fff',
-            color: '#4a5568',
+            color: '#111827',
             cursor: 'pointer',
             fontSize: 16,
             lineHeight: 1,
@@ -91,7 +102,7 @@ export default function NodeEditor({
       </div>
 
       <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#1a202c', lineHeight: 1.4, wordBreak: 'break-word' }}>
+        <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: '#111827', lineHeight: 1.35, wordBreak: 'break-word' }}>
           {label.trim() || 'Unnamed'}
         </div>
 
@@ -100,32 +111,32 @@ export default function NodeEditor({
             href={openUrl}
             target="_blank"
             rel="noreferrer"
-            style={{ fontSize: 13, color: '#3182ce', lineHeight: 1.45, wordBreak: 'break-all' }}
+            style={{ fontSize: 13, color: '#2563eb', lineHeight: 1.45, wordBreak: 'break-all' }}
           >
             {openUrl}
           </a>
         )}
 
         <div>
-          <div style={{ height: 6, background: '#e2e8f0', borderRadius: 99, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#38a169' : '#3182ce' }} />
+          <div style={{ height: 4, background: '#eef1f4', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: pct >= 100 ? '#f97316' : '#2563eb' }} />
           </div>
-          <div style={{ marginTop: 6, fontSize: 12, color: '#718096' }}>{pct}% complete</div>
+          <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#6b7280' }}>{pct}% complete</div>
         </div>
 
         <label style={{ display: 'block' }}>
-          <div style={{ fontSize: 12, color: '#4a5568', marginBottom: 4 }}>Label</div>
-          <textarea value={label} rows={4} onChange={(e) => setLabel(e.target.value)} placeholder="Node label" style={{ ...fieldStyle, wordBreak: 'break-word' }} />
+          <div style={labelStyle}>Label</div>
+          <textarea className="tech-field" value={label} rows={4} onChange={(e) => setLabel(e.target.value)} placeholder="Node label" style={{ ...fieldStyle, wordBreak: 'break-word' }} />
         </label>
 
         <label style={{ display: 'block' }}>
-          <div style={{ fontSize: 12, color: '#4a5568', marginBottom: 4 }}>URL</div>
-          <textarea value={url} rows={5} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" style={{ ...fieldStyle, wordBreak: 'break-all' }} />
+          <div style={labelStyle}>URL</div>
+          <textarea className="tech-field" value={url} rows={5} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" style={{ ...fieldStyle, wordBreak: 'break-all' }} />
         </label>
 
         <label style={{ display: 'block' }}>
-          <div style={{ fontSize: 12, color: '#4a5568', marginBottom: 4 }}>Progress: {pct}%</div>
-          <input type="range" min={0} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} style={{ width: '100%' }} />
+          <div style={labelStyle}>Progress: {pct}%</div>
+          <input type="range" min={0} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} style={{ width: '100%', accentColor: pct >= 100 ? '#f97316' : '#2563eb' }} />
         </label>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
@@ -135,7 +146,7 @@ export default function NodeEditor({
                 onDelete(node.id)
                 onClose()
               }}
-              style={{ padding: '8px 12px', background: '#fff', color: '#e53e3e', border: '1px solid #feb2b2', borderRadius: 8, cursor: 'pointer' }}
+              style={{ padding: '8px 12px', background: '#fff', color: '#f97316', border: '1px solid #fed7aa', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
             >
               Delete
             </button>
@@ -147,7 +158,7 @@ export default function NodeEditor({
               if (normalizedUrl && !/^https?:\/\//i.test(normalizedUrl)) normalizedUrl = `https://${normalizedUrl}`
               onSave({ ...node, data: { label: trimmed, url: normalizedUrl, percentage: pct } })
             }}
-            style={{ marginLeft: 'auto', padding: '8px 14px', background: '#3182ce', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}
+            style={{ marginLeft: 'auto', padding: '8px 14px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
           >
             Save
           </button>
