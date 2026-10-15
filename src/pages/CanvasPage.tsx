@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
+import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useStorage, type AppNode, type Project } from '../storage/useStorage'
 import CustomNode from '../components/CustomNode'
@@ -7,7 +7,9 @@ import ProjectSidebar from '../components/ProjectSidebar'
 import NodeEditor from '../components/NodeEditor'
 
 const nodeTypes: NodeTypes = { custom: CustomNode }
-const arrowMarker = { type: MarkerType.ArrowClosed, width: 18, height: 18, color: '#3182ce' } as const
+const EDGE = '#64748b'
+const arrowMarker = { type: MarkerType.ArrowClosed, width: 16, height: 16, color: EDGE } as const
+const edgeStyle = { stroke: EDGE, strokeWidth: 1.25 }
 
 export default function CanvasPage() {
   const { projects, loaded, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
@@ -64,7 +66,7 @@ export default function CanvasPage() {
       sourceHandle: e.sourceHandle,
       targetHandle: e.targetHandle,
       markerEnd: arrowMarker,
-      style: { stroke: '#3182ce', strokeWidth: 1.5 },
+      style: edgeStyle,
     }))
     setNodes(flowNodes as any)
     setEdges(flowEdges as any)
@@ -100,7 +102,7 @@ export default function CanvasPage() {
   const onConnect = useCallback(
     (params: Connection) => {
       setEdges((eds) => {
-        const next = addEdge({ ...params, id: `e${Date.now()}`, markerEnd: arrowMarker, style: { stroke: '#3182ce', strokeWidth: 1.5 } }, eds)
+        const next = addEdge({ ...params, id: `e${Date.now()}`, markerEnd: arrowMarker, style: edgeStyle }, eds)
         setTimeout(() => persist((nodes as any), next as any), 0)
         showToast('Connected')
         return next
@@ -301,7 +303,7 @@ export default function CanvasPage() {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', background: '#fff', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ height: '100vh', display: 'flex', background: '#f4f6f8', color: '#111827', fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
       <ProjectSidebar
         projects={projects}
         activeId={activeId}
@@ -342,22 +344,22 @@ export default function CanvasPage() {
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
-        <div style={{ height: 44, borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px', background: '#fff' }}>
-          <div style={{ fontWeight: 600, fontSize: 14, color: '#1a202c' }}>{activeProject?.name || '—'}</div>
+        <div style={{ height: 48, borderBottom: '1px solid #e6e8ee', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#fff' }}>
+          <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: '#111827' }}>{activeProject?.name || '—'}</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: '#718096' }}>
+            <span style={{ fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#6b7280' }}>
               {displayNodes.length} visible · {hiddenCount > 0 ? `${hiddenCount} hidden · ` : ''}{edges.length} edges
             </span>
-            <span title="Quad storage: chrome.local + IndexedDB + chrome.sync + localStorage, auto-recovery" style={{ fontSize: 10, color: '#38a169', border: '1px solid #c6f6d5', background: '#f0fff4', padding: '2px 6px', borderRadius: 99 }}>● Persisted</span>
+            <span title="Quad storage: chrome.local + IndexedDB + chrome.sync + localStorage, auto-recovery" style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#111827', border: '1px solid #e6e8ee', background: '#fff', padding: '3px 7px', borderRadius: 999 }}>Persisted</span>
             {hiddenCount > 0 && (
               <button
                 onClick={() => setCollapsedIds(new Set())}
-                style={{ padding: '4px 8px', background: '#edf2f7', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 11 }}
+                style={{ padding: '5px 8px', background: '#fff', border: '1px solid #e6e8ee', borderRadius: 8, cursor: 'pointer', fontSize: 11, color: '#111827' }}
               >
                 Expand all
               </button>
             )}
-            <button onClick={() => addNodeAt(100, 100)} style={{ padding: '6px 12px', background: '#3182ce', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
+            <button onClick={() => addNodeAt(100, 100)} style={{ padding: '6px 12px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
               + Add Node
             </button>
           </div>
@@ -380,8 +382,8 @@ export default function CanvasPage() {
             onDelete={onDelete}
             onNodeDragStop={onNodeDragStop}
             nodeTypes={nodeTypes}
-            defaultEdgeOptions={{ markerEnd: arrowMarker, style: { stroke: '#3182ce', strokeWidth: 1.5 } }}
-            connectionLineStyle={{ stroke: '#3182ce', strokeWidth: 1.5 }}
+            defaultEdgeOptions={{ markerEnd: arrowMarker, style: edgeStyle }}
+            connectionLineStyle={edgeStyle}
             deleteKeyCode={['Backspace', 'Delete']}
             fitView
             fitViewOptions={{ padding: 0.2 }}
@@ -392,9 +394,14 @@ export default function CanvasPage() {
               setEditingNode(null)
             }}
           >
-            <Background />
+            <Background variant={BackgroundVariant.Lines} gap={28} lineWidth={1} color="#e6e9ef" bgColor="#f4f6f8" />
             <Controls />
-            <MiniMap style={{ border: '1px solid #e2e8f0' }} />
+            <MiniMap
+              style={{ background: '#fff', border: '1px solid #e6e8ee', borderRadius: 12 }}
+              maskColor="rgba(17,24,39,0.05)"
+              nodeColor="#111827"
+              nodeStrokeWidth={2}
+            />
           </ReactFlow>
 
           {ctxMenu && (
@@ -406,9 +413,10 @@ export default function CanvasPage() {
                   left: ctxMenu.x,
                   top: ctxMenu.y,
                   background: '#fff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 8,
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                  border: '1px solid #e6e8ee',
+                  borderTop: '3px solid #111827',
+                  borderRadius: 12,
+                  boxShadow: '0 8px 18px rgba(17,24,39,0.08)',
                   overflow: 'hidden',
                   zIndex: 21,
                 }}
@@ -418,7 +426,7 @@ export default function CanvasPage() {
                     addNodeAt(ctxMenu.flowX, ctxMenu.flowY)
                     setCtxMenu(null)
                   }}
-                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, textAlign: 'left' }}
+                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#111827', textAlign: 'left' }}
                 >
                   + Add Node here
                 </button>
@@ -435,22 +443,23 @@ export default function CanvasPage() {
                   left: edgeCtxMenu.x,
                   top: edgeCtxMenu.y,
                   background: '#fff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 8,
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                  border: '1px solid #e6e8ee',
+                  borderTop: '3px solid #f97316',
+                  borderRadius: 12,
+                  boxShadow: '0 8px 18px rgba(17,24,39,0.08)',
                   overflow: 'hidden',
                   zIndex: 21,
                 }}
               >
                 <button
                   onClick={() => deleteEdge(edgeCtxMenu.edgeId)}
-                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, textAlign: 'left', color: '#e53e3e' }}
+                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, textAlign: 'left', color: '#f97316' }}
                 >
                   Delete connection
                 </button>
                 <button
                   onClick={() => setEdgeCtxMenu(null)}
-                  style={{ display: 'block', width: '100%', padding: '8px 16px', border: 'none', borderTop: '1px solid #f0f0f0', background: '#fff', cursor: 'pointer', fontSize: 12, textAlign: 'left', color: '#718096' }}
+                  style={{ display: 'block', width: '100%', padding: '8px 16px', border: 'none', borderTop: '1px solid #e6e8ee', background: '#fff', cursor: 'pointer', fontSize: 12, textAlign: 'left', color: '#6b7280' }}
                 >
                   Cancel
                 </button>
@@ -458,7 +467,7 @@ export default function CanvasPage() {
             </div>
           )}
 
-          <div style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(255,255,255,0.92)', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#4a5568', pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(255,255,255,0.94)', border: '1px solid #e6e8ee', borderRadius: 10, padding: '6px 10px', fontSize: 11, color: '#6b7280', pointerEvents: 'none' }}>
             Right-click canvas → Add Node · Click a node to open details on the right · Click edge / press Del to delete connection
           </div>
         </div>
@@ -467,7 +476,7 @@ export default function CanvasPage() {
       </div>
 
       {toast && (
-        <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#1a202c', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, zIndex: 60 }}>
+        <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#111827', color: '#fff', padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 60 }}>
           {toast}
         </div>
       )}
