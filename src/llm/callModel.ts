@@ -44,6 +44,13 @@ export function readChatContent(body: unknown): string {
   return content
 }
 
+export function chatHeaders(apiKey: string): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const key = apiKey.trim()
+  if (key) headers.Authorization = `Bearer ${key}`
+  return headers
+}
+
 export async function callModel(profile: LlmProfile, messages: ChatMessage[], modelOverride?: string, context?: string, history: NodeHistoryEntry[] = []): Promise<string> {
   const request = buildChatRequest(modelOverride?.trim() || profile.model, messages, context, history)
   if (!request.messages.some((message) => message.role === 'user')) throw new Error('Write a question first.')
@@ -52,10 +59,7 @@ export async function callModel(profile: LlmProfile, messages: ChatMessage[], mo
   try {
     response = await fetch(`${base}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${profile.apiKey}`,
-      },
+      headers: chatHeaders(profile.apiKey),
       body: JSON.stringify(request),
     })
   } catch {
