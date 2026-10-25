@@ -525,7 +525,7 @@ export default function CanvasPage() {
           )}
 
           <div style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(255,255,255,0.94)', border: '1px solid #e6e8ee', borderRadius: 10, padding: '6px 10px', fontSize: 11, color: '#6b7280', pointerEvents: 'none' }}>
-            Right-click canvas → Add Node or model node · Click a model node to ask in the details · Settings stores API keys
+            Right-click canvas → Add Node or model node · Click a model node to ask in the details · Settings stores cloud keys and local models
           </div>
         </div>
         <NodeEditor key={editingNode?.id ?? 'none'} node={editingNode} profiles={profiles} history={parentHistory} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} onOpenSettings={() => setSettingsOpen(true)} />
