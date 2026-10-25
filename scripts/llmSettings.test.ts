@@ -61,6 +61,17 @@ const profiles = normalizeProfiles([
 assert.equal(profiles.length, 1)
 assert.equal(profiles[0].name, 'DeepSeek')
 assert.equal(profiles[0].apiKey, 'sk-test-key')
+
+const localProfiles = normalizeProfiles([
+  { id: 'local', name: ' Ollama ', baseUrl: 'http://127.0.0.1:11434/v1', model: 'llama3' },
+  { id: 'blank', name: 'LM Studio', baseUrl: 'http://localhost:1234/v1', apiKey: '  ', model: 'qwen' },
+])
+assert.equal(localProfiles.length, 2)
+assert.equal(localProfiles[0].apiKey, '')
+assert.equal(localProfiles[0].name, 'Ollama')
+assert.equal(localProfiles[0].model, 'llama3')
+assert.equal(localProfiles[1].apiKey, '')
+assert.equal(originPattern(localProfiles[0].baseUrl), 'http://127.0.0.1:11434/*')
 assert.equal(originPattern(profiles[0].baseUrl), 'https://api.deepseek.com/*')
 assert.equal(originPattern('notaurl'), null)
 assert.equal(originPattern('ftp://example.com/v1'), null)
