@@ -3,7 +3,7 @@ import { storedNodeData } from '../src/storage/nodeData.ts'
 import { collectParentHistory } from '../src/storage/parentHistory.ts'
 
 const nodes = [
-  { id: 'a', data: { label: 'Research', url: 'https://example.com/spec', percentage: 40 } },
+  { id: 'a', data: { label: 'Research', url: 'https://example.com/spec', percentage: 40, note: 'Read the spec first' } },
   {
     id: 'b',
     data: {
@@ -31,6 +31,7 @@ const history = collectParentHistory('c', nodes, edges)
 assert.deepEqual(history.map((entry) => entry.label), ['Research', 'Outline', 'Side note'])
 assert.equal(history[0].kind, 'task')
 assert.equal(history[0].url, 'https://example.com/spec')
+assert.equal(history[0].note, 'Read the spec first')
 assert.equal(history[0].percentage, 40)
 assert.equal(history[1].kind, 'model')
 assert.deepEqual(history[1].messages, [
