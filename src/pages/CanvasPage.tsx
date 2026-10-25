@@ -193,7 +193,7 @@ export default function CanvasPage() {
         id: `n${Date.now()}`,
         type: 'custom',
         position: { x, y },
-        data: storedNodeData(kind === 'model' ? { label: 'Model call', percentage: 0, kind: 'model', prompt: '' } : { label: 'New Node', percentage: 0 }),
+        data: storedNodeData(kind === 'model' ? { label: 'Model call', percentage: 0, kind: 'model' } : { label: 'New Node', percentage: 0 }),
       }
       const flowNode: any = { id: newNode.id, type: 'custom', position: { x, y }, data: newNode.data }
       const nextNodes = [...(nodes as any), flowNode]
@@ -206,12 +206,12 @@ export default function CanvasPage() {
   )
 
   const handleSaveNode = useCallback(
-    (updated: AppNode) => {
+    (updated: AppNode, options?: { quiet?: boolean }) => {
       const nextNodes = (nodes as any).map((n: any) => (n.id === updated.id ? { ...n, data: updated.data } : n))
       setNodes(nextNodes as any)
       setEditingNode(updated)
       setTimeout(() => persist(nextNodes as any, edges as any), 0)
-      showToast('Saved')
+      if (!options?.quiet) showToast('Saved')
     },
     [nodes, edges, persist, setNodes],
   )
@@ -515,7 +515,7 @@ export default function CanvasPage() {
           )}
 
           <div style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(255,255,255,0.94)', border: '1px solid #e6e8ee', borderRadius: 10, padding: '6px 10px', fontSize: 11, color: '#6b7280', pointerEvents: 'none' }}>
-            Right-click canvas → Add Node or model node · Click a node for details · Settings stores API keys
+            Right-click canvas → Add Node or model node · Click a model node to ask in the details · Settings stores API keys
           </div>
         </div>
         <NodeEditor key={editingNode?.id ?? 'none'} node={editingNode} profiles={profiles} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} onOpenSettings={() => setSettingsOpen(true)} />

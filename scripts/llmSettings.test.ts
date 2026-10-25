@@ -10,6 +10,7 @@ const task = storedNodeData({
   profileId: 'k',
   output: 'x',
   model: 'gpt',
+  messages: [{ role: 'user', content: 'secret' }],
 })
 assert.equal(task.label, 'A')
 assert.equal(task.percentage, 100)
@@ -17,6 +18,7 @@ assert.equal(task.kind, undefined)
 assert.equal(task.prompt, undefined)
 assert.equal(task.profileId, undefined)
 assert.equal(task.output, undefined)
+assert.equal(task.messages, undefined)
 
 const model = storedNodeData({
   label: 'Model call',
@@ -24,15 +26,28 @@ const model = storedNodeData({
   kind: 'model',
   profileId: 'k1',
   model: 'deepseek-chat',
-  prompt: 'hi',
-  output: 'yo',
+  messages: [
+    { role: 'user', content: ' hi ' },
+    { role: 'assistant', content: 'yo' },
+    { role: 'system', content: 'skip me' },
+  ],
 })
 assert.equal(model.kind, 'model')
 assert.equal(model.profileId, 'k1')
 assert.equal(model.model, 'deepseek-chat')
-assert.equal(model.prompt, 'hi')
-assert.equal(model.output, 'yo')
+assert.deepEqual(model.messages, [
+  { role: 'user', content: 'hi' },
+  { role: 'assistant', content: 'yo' },
+])
+assert.equal(model.prompt, undefined)
+assert.equal(model.output, undefined)
 assert.equal('apiKey' in model, false)
+
+const legacy = storedNodeData({ label: 'Old', percentage: 0, kind: 'model', prompt: 'Question', output: 'Answer' })
+assert.deepEqual(legacy.messages, [
+  { role: 'user', content: 'Question' },
+  { role: 'assistant', content: 'Answer' },
+])
 
 const profiles = normalizeProfiles([
   { id: 'a', name: ' DeepSeek ', baseUrl: 'https://api.deepseek.com/v1/', apiKey: 'sk-test-key', model: 'deepseek-chat' },

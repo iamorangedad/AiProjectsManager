@@ -1,6 +1,7 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { callModel } from '../llm/callModel'
 import { requestModelOrigin, type LlmProfile } from '../storage/llmSettings'
+import type { ChatMessage } from '../storage/nodeData'
 import { storedNodeData, type AppNode, type NodeKind } from '../storage/useStorage'
 
 const fieldStyle: CSSProperties = {
@@ -38,7 +39,7 @@ export default function NodeEditor({
 }: {
   node: AppNode | null
   profiles: LlmProfile[]
-  onSave: (n: AppNode) => void
+  onSave: (n: AppNode, options?: { quiet?: boolean }) => void
   onClose: () => void
   onDelete?: (id: string) => void
   onOpenSettings: () => void
@@ -49,10 +50,12 @@ export default function NodeEditor({
   const [kind, setKind] = useState<NodeKind>(node?.data.kind === 'model' ? 'model' : 'task')
   const [profileId, setProfileId] = useState(node?.data.profileId ?? profiles[0]?.id ?? '')
   const [model, setModel] = useState(node?.data.model ?? '')
-  const [prompt, setPrompt] = useState(node?.data.prompt ?? '')
-  const [output, setOutput] = useState(node?.data.output ?? '')
+  const [messages, setMessages] = useState<ChatMessage[]>(storedNodeData(node?.data).messages ?? [])
+  const [question, setQuestion] = useState('')
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
+  const scroller = useRef<HTMLElement>(null)
+  const askRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -62,6 +65,16 @@ export default function NodeEditor({
     return () => window.removeEventListener('keydown', h)
   }, [onClose])
 
+  useEffect(() => {
+    if (kind === 'model') askRef.current?.focus()
+  }, [kind])
+
+  useEffect(() => {
+    const el = scroller.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [messages, running, runError])
+
   if (!node) return null
 
   const trimmedUrl = url.trim()
@@ -69,7 +82,7 @@ export default function NodeEditor({
   const selectedProfileId = profiles.some((item) => item.id === profileId) ? profileId : (profiles[0]?.id ?? '')
   const profile = profiles.find((item) => item.id === selectedProfileId) ?? null
 
-  const buildSaved = (next?: { output?: string; percentage?: number }): AppNode => {
+  const buildSaved = (next?: { messages?: ChatMessage[]; percentage?: number }): AppNode => {
     let normalizedUrl: string | undefined = url.trim() || undefined
     if (normalizedUrl && !/^https?:\/\//i.test(normalizedUrl)) normalizedUrl = `https://${normalizedUrl}`
     return {
@@ -81,14 +94,55 @@ export default function NodeEditor({
         kind,
         profileId: selectedProfileId,
         model,
-        prompt,
-        output: next?.output ?? output,
+        messages: next?.messages ?? messages,
       }),
     }
   }
 
+  const ask = () => {
+    if (!node || running) return
+    const text = question.trim()
+    if (!profile) {
+      setRunError('Add an API key in Settings.')
+      return
+    }
+    if (!text) {
+      setRunError('Write a question first.')
+      return
+    }
+    const pending = [...messages, { role: 'user' as const, content: text }]
+    setMessages(pending)
+    setQuestion('')
+    setRunning(true)
+    setRunError(null)
+    const context = `You are answering questions about a canvas node titled "${label.trim() || 'Unnamed'}". Reply in the same language as the question.`
+    void requestModelOrigin(profile.baseUrl).then(async (allowed) => {
+      if (!allowed) {
+        setMessages(messages)
+        setQuestion(text)
+        setRunning(false)
+        setRunError('Chrome did not allow calls to that API.')
+        return
+      }
+      try {
+        const result = await callModel(profile, pending, model, context)
+        const done = [...pending, { role: 'assistant' as const, content: result }]
+        setMessages(done)
+        setPct(100)
+        onSave(buildSaved({ messages: done, percentage: 100 }), { quiet: true })
+      } catch (err) {
+        setMessages(messages)
+        setQuestion(text)
+        setRunError(err instanceof Error ? err.message : 'The model call failed')
+      } finally {
+        setRunning(false)
+      }
+    })
+  }
+
   return (
     <aside
+      ref={scroller}
       style={{
         width: 340,
         flexShrink: 0,
@@ -201,71 +255,82 @@ export default function NodeEditor({
               <div style={labelStyle}>Model override</div>
               <input className="tech-field" value={model} onChange={(e) => setModel(e.target.value)} placeholder={profile?.model || 'Use the key default'} style={fieldStyle} />
             </label>
-            <label style={{ display: 'block' }}>
-              <div style={labelStyle}>Prompt</div>
-              <textarea className="tech-field" value={prompt} rows={5} onChange={(e) => setPrompt(e.target.value)} placeholder="What should the model do?" style={{ ...fieldStyle, wordBreak: 'break-word' }} />
-            </label>
-            <button
-              disabled={running || !profile}
-              onClick={() => {
-                if (!profile) return
-                const text = prompt.trim() || label.trim()
-                if (!text) {
-                  setRunError('Write a prompt first.')
-                  return
-                }
-                setRunning(true)
-                setRunError(null)
-                void requestModelOrigin(profile.baseUrl).then(async (allowed) => {
-                  if (!allowed) {
-                    setRunning(false)
-                    setRunError('Chrome did not allow calls to that API.')
-                    return
-                  }
-                  try {
-                    const result = await callModel(profile, text, model)
-                    setOutput(result)
-                    setPct(100)
-                    onSave(buildSaved({ output: result, percentage: 100 }))
-                  } catch (err) {
-                    setRunError(err instanceof Error ? err.message : 'The model call failed')
-                  } finally {
-                    setRunning(false)
-                  }
-                })
-              }}
-              style={{ padding: '8px 14px', background: running || !profile ? '#9ca3af' : '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: running || !profile ? 'default' : 'pointer', fontWeight: 600 }}
-            >
-              {running ? 'Running…' : 'Run model'}
-            </button>
-            {runError && <div style={{ fontSize: 12, color: '#f97316', lineHeight: 1.45, wordBreak: 'break-word' }}>{runError}</div>}
-            {output && (
-              <label style={{ display: 'block' }}>
-                <div style={labelStyle}>Output</div>
-                <textarea className="tech-field" readOnly value={output} rows={6} style={{ ...fieldStyle, wordBreak: 'break-word', background: '#f8fafc' }} />
-              </label>
-            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {messages.length === 0 && !running && (
+                <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.45 }}>Ask a question. The answer stays in this panel.</div>
+              )}
+              {messages.map((message, index) => (
+                <div key={`${message.role}-${index}`} style={{ alignSelf: message.role === 'user' ? 'flex-end' : 'stretch', maxWidth: '100%' }}>
+                  <div style={labelStyle}>{message.role === 'user' ? 'You' : 'Answer'}</div>
+                  <div
+                    style={{
+                      background: message.role === 'user' ? '#111827' : '#f4f6f8',
+                      color: message.role === 'user' ? '#fff' : '#111827',
+                      border: message.role === 'user' ? 'none' : '1px solid #e6e8ee',
+                      borderRadius: 12,
+                      padding: '8px 10px',
+                      fontSize: 13,
+                      lineHeight: 1.45,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {message.content}
+                  </div>
+                </div>
+              ))}
+              {running && <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#6b7280' }}>Thinking…</div>}
+            </div>
           </>
         )}
 
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
-          {onDelete && (
-            <button
-              onClick={() => {
-                onDelete(node.id)
-                onClose()
-              }}
-              style={{ padding: '8px 12px', background: '#fff', color: '#f97316', border: '1px solid #fed7aa', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
-            >
-              Delete
-            </button>
+        <div style={{ position: 'sticky', bottom: 0, background: '#fff', display: 'flex', flexDirection: 'column', gap: 8, margin: '0 -14px -14px', padding: 14, borderTop: '1px solid #e6e8ee' }}>
+          {kind === 'model' && (
+            <>
+              {runError && <div style={{ fontSize: 12, color: '#f97316', lineHeight: 1.45, wordBreak: 'break-word' }}>{runError}</div>}
+              <textarea
+                ref={askRef}
+                className="tech-field"
+                value={question}
+                rows={3}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    ask()
+                  }
+                }}
+                placeholder="Ask a question"
+                style={{ ...fieldStyle, wordBreak: 'break-word' }}
+              />
+              <button
+                disabled={running || !profile}
+                onClick={ask}
+                style={{ padding: '8px 14px', background: running || !profile ? '#9ca3af' : '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: running || !profile ? 'default' : 'pointer', fontWeight: 600 }}
+              >
+                {running ? 'Asking…' : 'Ask'}
+              </button>
+            </>
           )}
-          <button
-            onClick={() => onSave(buildSaved())}
-            style={{ marginLeft: 'auto', padding: '8px 14px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
-          >
-            Save
-          </button>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+            {onDelete && (
+              <button
+                onClick={() => {
+                  onDelete(node.id)
+                  onClose()
+                }}
+                style={{ padding: '8px 12px', background: '#fff', color: '#f97316', border: '1px solid #fed7aa', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+              >
+                Delete
+              </button>
+            )}
+            <button
+              onClick={() => onSave(buildSaved())}
+              style={{ marginLeft: 'auto', padding: '8px 14px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+            >
+              Save
+            </button>
+          </div>
         </div>
       </div>
     </aside>

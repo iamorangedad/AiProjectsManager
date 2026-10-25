@@ -1,4 +1,14 @@
+import type { ChatMessage } from '../storage/nodeData'
 import type { LlmProfile } from '../storage/llmSettings'
+
+export function buildChatMessages(messages: ChatMessage[], context?: string): { role: string; content: string }[] {
+  const turns = messages.flatMap((message) => {
+    if ((message.role !== 'user' && message.role !== 'assistant') || !message.content.trim()) return []
+    return [{ role: message.role, content: message.content.trim() }]
+  })
+  if (!context?.trim()) return turns
+  return [{ role: 'system', content: context.trim() }, ...turns]
+}
 
 export function readChatContent(body: unknown): string {
   if (!body || typeof body !== 'object') throw new Error('The model returned an unreadable response')
@@ -9,7 +19,9 @@ export function readChatContent(body: unknown): string {
   return content
 }
 
-export async function callModel(profile: LlmProfile, prompt: string, modelOverride?: string): Promise<string> {
+export async function callModel(profile: LlmProfile, messages: ChatMessage[], modelOverride?: string, context?: string): Promise<string> {
+  const chat = buildChatMessages(messages, context)
+  if (!chat.some((message) => message.role === 'user')) throw new Error('Write a question first.')
   const base = profile.baseUrl.replace(/\/+$/, '')
   const model = modelOverride?.trim() || profile.model
   let response: Response
@@ -22,7 +34,7 @@ export async function callModel(profile: LlmProfile, prompt: string, modelOverri
       },
       body: JSON.stringify({
         model,
-        messages: [{ role: 'user', content: prompt }],
+        messages: chat,
       }),
     })
   } catch {
