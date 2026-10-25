@@ -39,6 +39,7 @@ export default function SettingsPanel({
 }) {
   const [draft, setDraft] = useState<LlmProfile>(blank)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [noKey, setNoKey] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -52,7 +53,27 @@ export default function SettingsPanel({
   const reset = () => {
     setDraft(blank())
     setEditingId(null)
+    setNoKey(false)
     setError(null)
+  }
+
+  const setLocal = (checked: boolean) => {
+    setNoKey(checked)
+    setDraft((current) => {
+      if (checked) {
+        return {
+          ...current,
+          apiKey: '',
+          baseUrl: current.baseUrl.trim() === 'https://api.openai.com/v1' ? 'http://127.0.0.1:11434/v1' : current.baseUrl,
+          model: current.model.trim() === 'gpt-4o-mini' ? '' : current.model,
+        }
+      }
+      return {
+        ...current,
+        baseUrl: current.baseUrl.trim() === 'http://127.0.0.1:11434/v1' ? 'https://api.openai.com/v1' : current.baseUrl,
+        model: current.model.trim() ? current.model : 'gpt-4o-mini',
+      }
+    })
   }
 
   return (
@@ -78,39 +99,46 @@ export default function SettingsPanel({
         </div>
         <div style={{ padding: 14, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.45 }}>
-            Model nodes call an OpenAI-compatible chat API. Keys stay in this browser and are not included in project export.
+            Model nodes call an OpenAI-compatible chat API. A local server does not need an API key. Keys stay in this browser and are not included in project export.
           </div>
-          {profiles.length === 0 && <div style={{ fontSize: 13, color: '#6b7280' }}>No API keys yet.</div>}
+          {profiles.length === 0 && <div style={{ fontSize: 13, color: '#6b7280' }}>No models yet.</div>}
           {profiles.map((profile) => (
             <button
               key={profile.id}
               onClick={() => {
                 setEditingId(profile.id)
                 setDraft({ ...profile, apiKey: '' })
+                setNoKey(!profile.apiKey)
                 setError(null)
               }}
               style={{ textAlign: 'left', border: '1px solid #e6e8ee', borderLeft: editingId === profile.id ? '3px solid #2563eb' : '1px solid #e6e8ee', borderRadius: 10, background: '#fff', padding: '8px 10px', cursor: 'pointer' }}
             >
               <div style={{ fontWeight: 700, fontSize: 13 }}>{profile.name}</div>
-              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{profile.model} · key ••••{profile.apiKey.slice(-4)}</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{profile.apiKey ? `${profile.model} · key ••••${profile.apiKey.slice(-4)}` : `${profile.model} · local, no key`}</div>
             </button>
           ))}
           <label style={{ display: 'block' }}>
             <div style={label}>Name</div>
             <input className="tech-field" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="DeepSeek" style={field} />
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#111827' }}>
+            <input type="checkbox" checked={noKey} onChange={(e) => setLocal(e.target.checked)} style={{ accentColor: '#2563eb' }} />
+            Local model, no API key
+          </label>
           <label style={{ display: 'block' }}>
             <div style={label}>Base URL</div>
-            <input className="tech-field" value={draft.baseUrl} onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })} placeholder="https://api.openai.com/v1" style={field} />
+            <input className="tech-field" value={draft.baseUrl} onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })} placeholder={noKey ? 'http://127.0.0.1:11434/v1' : 'https://api.openai.com/v1'} style={field} />
           </label>
           <label style={{ display: 'block' }}>
             <div style={label}>Model</div>
-            <input className="tech-field" value={draft.model} onChange={(e) => setDraft({ ...draft, model: e.target.value })} placeholder="gpt-4o-mini" style={field} />
+            <input className="tech-field" value={draft.model} onChange={(e) => setDraft({ ...draft, model: e.target.value })} placeholder={noKey ? 'llama3' : 'gpt-4o-mini'} style={field} />
           </label>
-          <label style={{ display: 'block' }}>
-            <div style={label}>API key</div>
-            <input className="tech-field" type="password" value={draft.apiKey} onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })} placeholder={editingId ? 'Leave blank to keep the saved key' : 'sk-...'} style={field} autoComplete="off" />
-          </label>
+          {!noKey && (
+            <label style={{ display: 'block' }}>
+              <div style={label}>API key</div>
+              <input className="tech-field" type="password" value={draft.apiKey} onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })} placeholder={editingId ? 'Leave blank to keep the saved key' : 'sk-...'} style={field} autoComplete="off" />
+            </label>
+          )}
           {error && <div style={{ fontSize: 12, color: '#f97316', lineHeight: 1.4 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 8 }}>
             {editingId && (
@@ -130,9 +158,9 @@ export default function SettingsPanel({
                 const baseUrl = draft.baseUrl.trim()
                 const model = draft.model.trim()
                 const existing = profiles.find((p) => p.id === editingId)
-                const apiKey = draft.apiKey.trim() || existing?.apiKey || ''
-                if (!name || !baseUrl || !model || !apiKey) {
-                  setError('Name, base URL, model, and API key are required.')
+                const apiKey = noKey ? '' : (draft.apiKey.trim() || existing?.apiKey || '')
+                if (!name || !baseUrl || !model || (!noKey && !apiKey)) {
+                  setError(noKey ? 'Name, base URL, and model are required.' : 'Name, base URL, model, and API key are required.')
                   return
                 }
                 let parsed: URL
@@ -158,7 +186,7 @@ export default function SettingsPanel({
               }}
               style={{ marginLeft: 'auto', padding: '8px 14px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
             >
-              {editingId ? 'Update key' : 'Add key'}
+              {editingId ? 'Update model' : 'Add model'}
             </button>
           </div>
         </div>
