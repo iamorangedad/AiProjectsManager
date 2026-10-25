@@ -30,6 +30,36 @@ export interface AppNodeData {
   history?: NodeHistoryEntry[]
 }
 
+function urlHost(value: string): string {
+  const head = value.split(/[/?#]/, 1)[0] ?? ''
+  if (head.startsWith('[')) {
+    const end = head.indexOf(']')
+    return (end >= 0 ? head.slice(1, end) : head.slice(1)).toLowerCase()
+  }
+  if (head.toLowerCase() === '::1') return '::1'
+  return head.replace(/:\d+$/, '').toLowerCase()
+}
+
+function isLocalHost(host: string): boolean {
+  if (host === 'localhost' || host === '0.0.0.0' || host === '::1') return true
+  const parts = host.split('.')
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) return false
+  const nums = parts.map(Number)
+  if (nums.some((n) => n > 255)) return false
+  const [a, b] = nums
+  if (a === 127 || a === 10 || a === 0) return true
+  if (a === 192 && b === 168) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  return false
+}
+
+export function normalizeNodeUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `${isLocalHost(urlHost(trimmed)) ? 'http' : 'https'}://${trimmed}`
+}
+
 export function normalizeMessages(value: unknown): ChatMessage[] {
   if (!Array.isArray(value)) return []
   const messages: ChatMessage[] = []
@@ -59,7 +89,8 @@ export function normalizeHistory(value: unknown): NodeHistoryEntry[] {
       kind,
       percentage: Math.max(0, Math.min(100, Number(row.percentage) || 0)),
     }
-    if (typeof row.url === 'string' && row.url.trim()) entry.url = row.url.trim()
+    const url = typeof row.url === 'string' ? normalizeNodeUrl(row.url) : undefined
+    if (url) entry.url = url
     if (typeof row.note === 'string' && row.note.trim()) entry.note = row.note.trim()
     if (kind === 'model') {
       const messages = normalizeMessages(row.messages)
@@ -75,7 +106,7 @@ export function storedNodeData(data: Partial<AppNodeData> | undefined, fallbackL
   const note = data?.note?.trim() || undefined
   const base: AppNodeData = {
     label: (data?.label || fallbackLabel).trim() || fallbackLabel,
-    url: data?.url?.trim() || undefined,
+    url: normalizeNodeUrl(data?.url),
     percentage: Math.max(0, Math.min(100, Number(data?.percentage) || 0)),
     ...(note ? { note } : {}),
   }
