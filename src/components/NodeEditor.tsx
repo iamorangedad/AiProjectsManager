@@ -104,7 +104,7 @@ export default function NodeEditor({
     if (!node || running) return
     const text = question.trim()
     if (!profile) {
-      setRunError('Add an API key in Settings.')
+      setRunError('Add a model in Settings.')
       return
     }
     if (!text) {
@@ -231,18 +231,19 @@ export default function NodeEditor({
         {kind === 'model' && (
           <>
             <label style={{ display: 'block' }}>
-              <div style={labelStyle}>API key</div>
+              <div style={labelStyle}>Connection</div>
               {profiles.length === 0 ? (
                 <button onClick={onOpenSettings} style={{ padding: '8px 12px', background: '#fff', color: '#2563eb', border: '1px solid #e6e8ee', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
-                  Add an API key in Settings
+                  Add a model in Settings
                 </button>
               ) : (
                 <select className="tech-field" value={selectedProfileId} onChange={(e) => setProfileId(e.target.value)} style={fieldStyle}>
                   {profiles.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
+                    <option key={item.id} value={item.id}>{item.apiKey ? item.name : `${item.name} (no key)`}</option>
                   ))}
                 </select>
               )}
+              {profile && <div style={{ marginTop: 6, fontSize: 12, color: '#6b7280', lineHeight: 1.45, wordBreak: 'break-all' }}>{profile.apiKey ? profile.baseUrl : `${profile.baseUrl} · no API key`}</div>}
             </label>
             <label style={{ display: 'block' }}>
               <div style={labelStyle}>Model override</div>
