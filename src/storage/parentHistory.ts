@@ -13,6 +13,7 @@ function historyEntry(node: HistoryNode): NodeHistoryEntry {
     percentage: data.percentage,
   }
   if (data.url) entry.url = data.url
+  if (data.note) entry.note = data.note
   if (entry.kind === 'model' && data.messages?.length) entry.messages = data.messages
   return entry
 }
