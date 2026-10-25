@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildChatMessages, buildChatRequest, readChatContent } from '../src/llm/callModel.ts'
+import { buildChatMessages, buildChatRequest, chatHeaders, readChatContent } from '../src/llm/callModel.ts'
 
 const text = readChatContent({ choices: [{ message: { content: 'hello' } }] })
 assert.equal(text, 'hello')
@@ -44,5 +44,9 @@ assert.match(request.messages[0].content, /https:\/\/example.com\/spec/)
 assert.match(request.messages[0].content, /Read the spec first/)
 assert.match(request.messages[0].content, /A short outline/)
 assert.equal(request.messages.at(-1)?.content, 'Next step?')
+
+assert.deepEqual(chatHeaders(''), { 'Content-Type': 'application/json' })
+assert.deepEqual(chatHeaders('  '), { 'Content-Type': 'application/json' })
+assert.deepEqual(chatHeaders(' sk-local '), { 'Content-Type': 'application/json', Authorization: 'Bearer sk-local' })
 
 console.log('callModel ok')
