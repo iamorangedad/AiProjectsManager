@@ -65,4 +65,14 @@ assert.equal(originPattern(profiles[0].baseUrl), 'https://api.deepseek.com/*')
 assert.equal(originPattern('notaurl'), null)
 assert.equal(originPattern('ftp://example.com/v1'), null)
 
+assert.equal(storedNodeData({ label: 'U', percentage: 0, url: 'http://example.com' }).url, 'http://example.com')
+assert.equal(storedNodeData({ label: 'U', percentage: 0, url: 'https://example.com' }).url, 'https://example.com')
+assert.equal(storedNodeData({ label: 'U', percentage: 0, url: 'https://localhost:3000' }).url, 'https://localhost:3000')
+assert.equal(storedNodeData({ label: 'U', percentage: 0, url: 'localhost:3000' }).url, 'http://localhost:3000')
+assert.equal(storedNodeData({ label: 'U', percentage: 0, url: '127.0.0.1:8080/path' }).url, 'http://127.0.0.1:8080/path')
+assert.equal(storedNodeData({ label: 'U', percentage: 0, url: 'example.com' }).url, 'https://example.com')
+assert.equal(storedNodeData({ label: 'U', percentage: 0, url: '  ' }).url, undefined)
+const localUrl = storedNodeData({ label: 'U', percentage: 0, url: 'localhost:3000' }).url
+assert.equal(storedNodeData({ label: 'U', percentage: 0, url: localUrl }).url, localUrl)
+
 console.log('llmSettings ok')
