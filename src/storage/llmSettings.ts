@@ -31,13 +31,14 @@ export function normalizeProfiles(value: unknown): LlmProfile[] {
   return value.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
     const row = item as Partial<LlmProfile>
-    if (typeof row.id !== 'string' || typeof row.apiKey !== 'string') return []
+    if (typeof row.id !== 'string') return []
+    if (row.apiKey != null && typeof row.apiKey !== 'string') return []
     const baseUrl = (row.baseUrl || 'https://api.openai.com/v1').trim()
     return [{
       id: row.id,
       name: (row.name || 'Model').trim() || 'Model',
       baseUrl,
-      apiKey: row.apiKey,
+      apiKey: typeof row.apiKey === 'string' ? row.apiKey.trim() : '',
       model: (row.model || 'gpt-4o-mini').trim() || 'gpt-4o-mini',
     }]
   })
