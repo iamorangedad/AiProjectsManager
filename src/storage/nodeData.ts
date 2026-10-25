@@ -12,12 +12,14 @@ export interface NodeHistoryEntry {
   kind: NodeKind
   percentage: number
   url?: string
+  note?: string
   messages?: ChatMessage[]
 }
 
 export interface AppNodeData {
   label: string
   url?: string
+  note?: string
   percentage: number
   kind?: NodeKind
   profileId?: string
@@ -58,6 +60,7 @@ export function normalizeHistory(value: unknown): NodeHistoryEntry[] {
       percentage: Math.max(0, Math.min(100, Number(row.percentage) || 0)),
     }
     if (typeof row.url === 'string' && row.url.trim()) entry.url = row.url.trim()
+    if (typeof row.note === 'string' && row.note.trim()) entry.note = row.note.trim()
     if (kind === 'model') {
       const messages = normalizeMessages(row.messages)
       if (messages.length) entry.messages = messages
@@ -69,10 +72,12 @@ export function normalizeHistory(value: unknown): NodeHistoryEntry[] {
 
 export function storedNodeData(data: Partial<AppNodeData> | undefined, fallbackLabel = 'Unnamed'): AppNodeData {
   const kind: NodeKind = data?.kind === 'model' ? 'model' : 'task'
+  const note = data?.note?.trim() || undefined
   const base: AppNodeData = {
     label: (data?.label || fallbackLabel).trim() || fallbackLabel,
     url: data?.url?.trim() || undefined,
     percentage: Math.max(0, Math.min(100, Number(data?.percentage) || 0)),
+    ...(note ? { note } : {}),
   }
   if (kind !== 'model') return base
   const fromMessages = normalizeMessages(data?.messages)
