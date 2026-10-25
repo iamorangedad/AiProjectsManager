@@ -23,7 +23,7 @@ assert.deepEqual(chat, [
 ])
 
 const request = buildChatRequest('mock', [{ role: 'user', content: 'Next step?' }], 'Stay brief.', [
-  { id: 'parent', label: 'Research', kind: 'task', percentage: 40, url: 'https://example.com/spec' },
+  { id: 'parent', label: 'Research', kind: 'task', percentage: 40, url: 'https://example.com/spec', note: 'Read the spec first' },
   {
     id: 'mid',
     label: 'Outline',
@@ -41,6 +41,7 @@ assert.equal(request.history[0].label, 'Research')
 assert.match(request.messages[0].content, /Parent nodes:/)
 assert.match(request.messages[0].content, /Research/)
 assert.match(request.messages[0].content, /https:\/\/example.com\/spec/)
+assert.match(request.messages[0].content, /Read the spec first/)
 assert.match(request.messages[0].content, /A short outline/)
 assert.equal(request.messages.at(-1)?.content, 'Next step?')
 
