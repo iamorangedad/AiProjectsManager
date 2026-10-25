@@ -19,6 +19,10 @@ assert.equal(task.prompt, undefined)
 assert.equal(task.profileId, undefined)
 assert.equal(task.output, undefined)
 assert.equal(task.messages, undefined)
+assert.equal(task.note, undefined)
+
+const noted = storedNodeData({ label: 'A', percentage: 10, note: '  Keep this  ' })
+assert.equal(noted.note, 'Keep this')
 
 const model = storedNodeData({
   label: 'Model call',
