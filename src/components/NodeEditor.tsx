@@ -80,28 +80,24 @@ export default function NodeEditor({
 
   if (!node) return null
 
-  const trimmedUrl = url.trim()
-  const openUrl = trimmedUrl ? (/^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`) : ''
   const selectedProfileId = profiles.some((item) => item.id === profileId) ? profileId : (profiles[0]?.id ?? '')
   const profile = profiles.find((item) => item.id === selectedProfileId) ?? null
 
   const buildSaved = (next?: { messages?: ChatMessage[]; percentage?: number; history?: NodeHistoryEntry[] }): AppNode => {
-    let normalizedUrl: string | undefined = url.trim() || undefined
-    if (normalizedUrl && !/^https?:\/\//i.test(normalizedUrl)) normalizedUrl = `https://${normalizedUrl}`
-    return {
-      ...node,
-      data: storedNodeData({
-        label: label.trim() || 'Unnamed',
-        note,
-        url: normalizedUrl,
-        percentage: next?.percentage ?? pct,
-        kind,
-        profileId: selectedProfileId,
-        model,
-        messages: next?.messages ?? messages,
-        history: next?.history ?? history,
-      }),
-    }
+    const data = storedNodeData({
+      label: label.trim() || 'Unnamed',
+      note,
+      url,
+      percentage: next?.percentage ?? pct,
+      kind,
+      profileId: selectedProfileId,
+      model,
+      messages: next?.messages ?? messages,
+      history: next?.history ?? history,
+    })
+    const nextUrl = data.url ?? ''
+    if (nextUrl !== url) setUrl(nextUrl)
+    return { ...node, data }
   }
 
   const ask = () => {
@@ -209,12 +205,6 @@ export default function NodeEditor({
           </select>
         </label>
 
-        {kind === 'task' && openUrl && (
-          <a href={openUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#2563eb', lineHeight: 1.45, wordBreak: 'break-all' }}>
-            {openUrl}
-          </a>
-        )}
-
         <label style={{ display: 'block' }}>
           <div style={labelStyle}>Label</div>
           <textarea className="tech-field" value={label} rows={kind === 'model' ? 2 : 3} onChange={(e) => setLabel(e.target.value)} placeholder="Node label" style={{ ...fieldStyle, wordBreak: 'break-word' }} />
@@ -229,7 +219,7 @@ export default function NodeEditor({
           <>
             <label style={{ display: 'block' }}>
               <div style={labelStyle}>URL</div>
-              <textarea className="tech-field" value={url} rows={5} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" style={{ ...fieldStyle, wordBreak: 'break-all' }} />
+              <textarea className="tech-field" value={url} rows={5} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3000" style={{ ...fieldStyle, wordBreak: 'break-all' }} />
             </label>
             <label style={{ display: 'block' }}>
               <div style={labelStyle}>Progress: {pct}%</div>
