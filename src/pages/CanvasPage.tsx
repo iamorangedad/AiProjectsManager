@@ -13,6 +13,7 @@ const nodeTypes: NodeTypes = { custom: CustomNode }
 const EDGE = '#64748b'
 const arrowMarker = { type: MarkerType.ArrowClosed, width: 16, height: 16, color: EDGE } as const
 const edgeStyle = { stroke: EDGE, strokeWidth: 1.25 }
+const fitViewOptions = { padding: 0.2, maxZoom: 1 }
 
 export default function CanvasPage() {
   const { projects, loaded, writable, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
@@ -104,10 +105,10 @@ export default function CanvasPage() {
     if (!activeId || !flowHydrated.current || !expectedNodeIds || flowNodeKey !== expectedNodeIds) return
     if (fittedProjectId.current === activeId) return
     const frame = requestAnimationFrame(() => {
-      reactFlowInstance.current?.fitView?.({ padding: 0.2 })
+      reactFlowInstance.current?.fitView?.(fitViewOptions)
     })
     const timer = window.setTimeout(() => {
-      reactFlowInstance.current?.fitView?.({ padding: 0.2 })
+      reactFlowInstance.current?.fitView?.(fitViewOptions)
       fittedProjectId.current = activeId
     }, 60)
     return () => {
@@ -432,7 +433,8 @@ export default function CanvasPage() {
             connectionLineStyle={edgeStyle}
             deleteKeyCode={['Backspace', 'Delete']}
             fitView
-            fitViewOptions={{ padding: 0.2 }}
+            fitViewOptions={fitViewOptions}
+            maxZoom={1.5}
             proOptions={{ hideAttribution: true }}
             onPaneClick={() => {
               setCtxMenu(null)
