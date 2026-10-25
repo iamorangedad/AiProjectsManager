@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { callModel } from '../llm/callModel'
 import { requestModelOrigin, type LlmProfile } from '../storage/llmSettings'
-import type { ChatMessage } from '../storage/nodeData'
+import type { ChatMessage, NodeHistoryEntry } from '../storage/nodeData'
 import { storedNodeData, type AppNode, type NodeKind } from '../storage/useStorage'
 
 const fieldStyle: CSSProperties = {
@@ -36,6 +36,7 @@ export default function NodeEditor({
   onClose,
   onDelete,
   onOpenSettings,
+  history,
 }: {
   node: AppNode | null
   profiles: LlmProfile[]
@@ -43,6 +44,7 @@ export default function NodeEditor({
   onClose: () => void
   onDelete?: (id: string) => void
   onOpenSettings: () => void
+  history: NodeHistoryEntry[]
 }) {
   const [label, setLabel] = useState(node?.data.label ?? '')
   const [url, setUrl] = useState(node?.data.url ?? '')
@@ -82,7 +84,7 @@ export default function NodeEditor({
   const selectedProfileId = profiles.some((item) => item.id === profileId) ? profileId : (profiles[0]?.id ?? '')
   const profile = profiles.find((item) => item.id === selectedProfileId) ?? null
 
-  const buildSaved = (next?: { messages?: ChatMessage[]; percentage?: number }): AppNode => {
+  const buildSaved = (next?: { messages?: ChatMessage[]; percentage?: number; history?: NodeHistoryEntry[] }): AppNode => {
     let normalizedUrl: string | undefined = url.trim() || undefined
     if (normalizedUrl && !/^https?:\/\//i.test(normalizedUrl)) normalizedUrl = `https://${normalizedUrl}`
     return {
@@ -95,6 +97,7 @@ export default function NodeEditor({
         profileId: selectedProfileId,
         model,
         messages: next?.messages ?? messages,
+        history: next?.history ?? history,
       }),
     }
   }
@@ -111,6 +114,7 @@ export default function NodeEditor({
       return
     }
     const pending = [...messages, { role: 'user' as const, content: text }]
+    const parentHistory = history
     setMessages(pending)
     setQuestion('')
     setRunning(true)
@@ -125,11 +129,11 @@ export default function NodeEditor({
         return
       }
       try {
-        const result = await callModel(profile, pending, model, context)
+        const result = await callModel(profile, pending, model, context, parentHistory)
         const done = [...pending, { role: 'assistant' as const, content: result }]
         setMessages(done)
         setPct(100)
-        onSave(buildSaved({ messages: done, percentage: 100 }), { quiet: true })
+        onSave(buildSaved({ messages: done, percentage: 100, history: parentHistory }), { quiet: true })
       } catch (err) {
         setMessages(messages)
         setQuestion(text)
@@ -255,6 +259,9 @@ export default function NodeEditor({
               <div style={labelStyle}>Model override</div>
               <input className="tech-field" value={model} onChange={(e) => setModel(e.target.value)} placeholder={profile?.model || 'Use the key default'} style={fieldStyle} />
             </label>
+            <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.45 }}>
+              {history.length === 0 ? 'History: no parent nodes' : `History: ${history.map((entry) => entry.label).join(', ')}`}
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {messages.length === 0 && !running && (
                 <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.45 }}>Ask a question. The answer stays in this panel.</div>
