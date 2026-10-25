@@ -47,6 +47,7 @@ export default function NodeEditor({
   history: NodeHistoryEntry[]
 }) {
   const [label, setLabel] = useState(node?.data.label ?? '')
+  const [note, setNote] = useState(node?.data.note ?? '')
   const [url, setUrl] = useState(node?.data.url ?? '')
   const [pct, setPct] = useState(node?.data.percentage ?? 0)
   const [kind, setKind] = useState<NodeKind>(node?.data.kind === 'model' ? 'model' : 'task')
@@ -91,6 +92,7 @@ export default function NodeEditor({
       ...node,
       data: storedNodeData({
         label: label.trim() || 'Unnamed',
+        note,
         url: normalizedUrl,
         percentage: next?.percentage ?? pct,
         kind,
@@ -119,7 +121,8 @@ export default function NodeEditor({
     setQuestion('')
     setRunning(true)
     setRunError(null)
-    const context = `You are answering questions about a canvas node titled "${label.trim() || 'Unnamed'}". Reply in the same language as the question.`
+    const noteText = note.trim()
+    const context = `You are answering questions about a canvas node titled "${label.trim() || 'Unnamed'}".${noteText ? ` Note: ${noteText}` : ''} Reply in the same language as the question.`
     void requestModelOrigin(profile.baseUrl).then(async (allowed) => {
       if (!allowed) {
         setMessages(messages)
@@ -212,18 +215,14 @@ export default function NodeEditor({
           </a>
         )}
 
-        {kind === 'task' && (
-          <div>
-            <div style={{ height: 4, background: '#eef1f4', borderRadius: 99, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${pct}%`, background: pct >= 100 ? '#16a34a' : '#2563eb' }} />
-            </div>
-            <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#6b7280' }}>{pct}% complete</div>
-          </div>
-        )}
-
         <label style={{ display: 'block' }}>
           <div style={labelStyle}>Label</div>
-          <textarea className="tech-field" value={label} rows={kind === 'model' ? 2 : 4} onChange={(e) => setLabel(e.target.value)} placeholder="Node label" style={{ ...fieldStyle, wordBreak: 'break-word' }} />
+          <textarea className="tech-field" value={label} rows={kind === 'model' ? 2 : 3} onChange={(e) => setLabel(e.target.value)} placeholder="Node label" style={{ ...fieldStyle, wordBreak: 'break-word' }} />
+        </label>
+
+        <label style={{ display: 'block' }}>
+          <div style={labelStyle}>Note</div>
+          <textarea className="tech-field" value={note} rows={4} onChange={(e) => setNote(e.target.value)} placeholder="Add a note" style={{ ...fieldStyle, wordBreak: 'break-word' }} />
         </label>
 
         {kind === 'task' && (
