@@ -15,6 +15,7 @@ export function formatParentHistory(history: NodeHistoryEntry[]): string {
   const blocks = history.map((entry, index) => {
     const lines = [`${index + 1}. ${entry.label} (${entry.kind})`]
     if (entry.url) lines.push(entry.url)
+    if (entry.note) lines.push(entry.note)
     if (entry.kind === 'task') lines.push(`${entry.percentage}% complete`)
     for (const message of entry.messages ?? []) {
       lines.push(`${message.role === 'user' ? 'Question' : 'Answer'}: ${message.content}`)
