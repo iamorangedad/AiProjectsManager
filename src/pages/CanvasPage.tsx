@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { collectParentHistory } from '../storage/parentHistory'
 import { storedNodeData, useStorage, type AppNode, type NodeKind, type Project } from '../storage/useStorage'
 import { loadLlmProfiles, saveLlmProfiles, type LlmProfile } from '../storage/llmSettings'
 import SettingsPanel from '../components/SettingsPanel'
@@ -32,6 +33,13 @@ export default function CanvasPage() {
   const fittedProjectId = useRef<string | null>(null)
 
   const activeProject = useMemo(() => projects.find((p) => p.id === activeId) || null, [projects, activeId])
+  const parentHistory = useMemo(
+    () =>
+      editingNode
+        ? collectParentHistory(editingNode.id, nodes, edges)
+        : [],
+    [editingNode, nodes, edges],
+  )
   const projectSyncKey = activeProject
     ? `${activeProject.id}|${activeProject.nodes.map((n) => n.id).join(',')}|${activeProject.edges.map((e) => `${e.id}:${e.source}:${e.target}`).join(',')}`
     : ''
@@ -518,7 +526,7 @@ export default function CanvasPage() {
             Right-click canvas → Add Node or model node · Click a model node to ask in the details · Settings stores API keys
           </div>
         </div>
-        <NodeEditor key={editingNode?.id ?? 'none'} node={editingNode} profiles={profiles} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} onOpenSettings={() => setSettingsOpen(true)} />
+        <NodeEditor key={editingNode?.id ?? 'none'} node={editingNode} profiles={profiles} history={parentHistory} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} onOpenSettings={() => setSettingsOpen(true)} />
         </div>
       </div>
 
