@@ -4,6 +4,7 @@ export type CustomNodeData = {
   label: string
   url?: string
   percentage: number
+  kind?: 'task' | 'model'
   hasChildren?: boolean
   isCollapsed?: boolean
   onToggle?: () => void
@@ -87,7 +88,7 @@ export default function CustomNode({ data, selected }: NodeProps) {
         <div style={{ flex: 1, height: 4, background: '#eef1f4', borderRadius: 99, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${pct}%`, background: accent, transition: 'width 0.2s' }} />
         </div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', fontVariantNumeric: 'tabular-nums' }}>{pct}%</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', fontVariantNumeric: 'tabular-nums' }}>{d.kind === 'model' ? 'LLM' : `${pct}%`}</div>
       </div>
     </div>
   )

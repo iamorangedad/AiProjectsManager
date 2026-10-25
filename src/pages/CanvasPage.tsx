@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useStorage, type AppNode, type Project } from '../storage/useStorage'
+import { storedNodeData, useStorage, type AppNode, type NodeKind, type Project } from '../storage/useStorage'
+import { loadLlmProfiles, saveLlmProfiles, type LlmProfile } from '../storage/llmSettings'
+import SettingsPanel from '../components/SettingsPanel'
 import CustomNode from '../components/CustomNode'
 import ProjectSidebar from '../components/ProjectSidebar'
 import NodeEditor from '../components/NodeEditor'
@@ -21,6 +23,8 @@ export default function CanvasPage() {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
   const [edgeCtxMenu, setEdgeCtxMenu] = useState<{ x: number; y: number; edgeId: string } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [profiles, setProfiles] = useState<LlmProfile[]>([])
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const flowRef = useRef<HTMLDivElement>(null)
   const reactFlowInstance = useRef<any>(null)
@@ -42,6 +46,10 @@ export default function CanvasPage() {
   useEffect(() => {
     setCollapsedIds(new Set())
   }, [activeId])
+
+  useEffect(() => {
+    void loadLlmProfiles().then(setProfiles)
+  }, [])
 
   const toggleCollapse = useCallback((nodeId: string) => {
     setCollapsedIds((prev) => {
@@ -67,7 +75,7 @@ export default function CanvasPage() {
       id: n.id,
       type: n.type || 'custom',
       position: n.position && typeof n.position.x === 'number' ? n.position : { x: 0, y: 0 },
-      data: n.data ?? { label: 'Unnamed', percentage: 0 },
+      data: storedNodeData(n.data),
     }))
     const flowEdges = activeProject.edges.map((e) => ({
       id: e.id,
@@ -107,7 +115,7 @@ export default function CanvasPage() {
         id: n.id,
         type: n.type || 'custom',
         position: n.position,
-        data: { label: n.data.label, url: n.data.url, percentage: n.data.percentage },
+        data: storedNodeData(n.data),
       }))
       const toAppEdges = nextEdges.map((e: any) => ({
         id: e.id,
@@ -165,8 +173,7 @@ export default function CanvasPage() {
   )
 
   const onNodeClick = useCallback((_e: any, node: any) => {
-    const clean = { label: node.data.label, url: node.data.url, percentage: node.data.percentage }
-    setEditingNode({ id: node.id, type: node.type, position: node.position, data: clean as any })
+    setEditingNode({ id: node.id, type: node.type, position: node.position, data: storedNodeData(node.data) })
   }, [])
 
   const onPaneContextMenu = useCallback(
@@ -181,12 +188,12 @@ export default function CanvasPage() {
   )
 
   const addNodeAt = useCallback(
-    (x: number, y: number) => {
+    (x: number, y: number, kind: NodeKind = 'task') => {
       const newNode: AppNode = {
         id: `n${Date.now()}`,
         type: 'custom',
         position: { x, y },
-        data: { label: 'New Node', percentage: 0 },
+        data: storedNodeData(kind === 'model' ? { label: 'Model call', percentage: 0, kind: 'model', prompt: '' } : { label: 'New Node', percentage: 0 }),
       }
       const flowNode: any = { id: newNode.id, type: 'custom', position: { x, y }, data: newNode.data }
       const nextNodes = [...(nodes as any), flowNode]
@@ -387,6 +394,9 @@ export default function CanvasPage() {
                 Expand all
               </button>
             )}
+            <button onClick={() => setSettingsOpen(true)} style={{ padding: '6px 12px', background: '#fff', color: '#111827', border: '1px solid #e6e8ee', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              Settings
+            </button>
             <button onClick={() => addNodeAt(100, 100)} style={{ padding: '6px 12px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
               + Add Node
             </button>
@@ -458,6 +468,15 @@ export default function CanvasPage() {
                 >
                   + Add Node here
                 </button>
+                <button
+                  onClick={() => {
+                    addNodeAt(ctxMenu.flowX, ctxMenu.flowY, 'model')
+                    setCtxMenu(null)
+                  }}
+                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', borderTop: '1px solid #e6e8ee', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#111827', textAlign: 'left' }}
+                >
+                  + Add model node
+                </button>
               </div>
             </div>
           )}
@@ -496,12 +515,24 @@ export default function CanvasPage() {
           )}
 
           <div style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(255,255,255,0.94)', border: '1px solid #e6e8ee', borderRadius: 10, padding: '6px 10px', fontSize: 11, color: '#6b7280', pointerEvents: 'none' }}>
-            Right-click canvas → Add Node · Click a node to open details on the right · Click edge / press Del to delete connection
+            Right-click canvas → Add Node or model node · Click a node for details · Settings stores API keys
           </div>
         </div>
-        <NodeEditor key={editingNode?.id ?? 'none'} node={editingNode} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} />
+        <NodeEditor key={editingNode?.id ?? 'none'} node={editingNode} profiles={profiles} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} onOpenSettings={() => setSettingsOpen(true)} />
         </div>
       </div>
+
+      {settingsOpen && (
+        <SettingsPanel
+          profiles={profiles}
+          onClose={() => setSettingsOpen(false)}
+          onSave={(next) => {
+            setProfiles(next)
+            void saveLlmProfiles(next)
+            showToast('Settings saved')
+          }}
+        />
+      )}
 
       {toast && (
         <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#111827', color: '#fff', padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 60 }}>

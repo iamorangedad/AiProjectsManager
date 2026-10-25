@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { idbGet, idbSet, requestPersistent } from './idb'
+import { storedNodeData, type AppNodeData, type NodeKind } from './nodeData'
 import { pickSnapshot, type Snapshot } from './pickSnapshot'
+
+export { storedNodeData, type AppNodeData, type NodeKind }
 
 const STORAGE_KEY = 'projects'
 const META_KEY = 'projects_meta_ts'
@@ -30,7 +33,7 @@ export interface AppNode {
   id: string
   type: string
   position: { x: number; y: number }
-  data: { label: string; url?: string; percentage: number }
+  data: AppNodeData
 }
 
 export interface AppEdge {
@@ -60,7 +63,13 @@ function asProjects(value: unknown): Project[] | null {
       nodes: project.nodes.flatMap((node) => {
         if (!node || typeof node.id !== 'string') return []
         const position = node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number' ? node.position : { x: 0, y: 0 }
-        return [{ ...node, position }]
+        const raw = node.data && typeof node.data === 'object' ? node.data : undefined
+        return [{
+          id: node.id,
+          type: typeof node.type === 'string' ? node.type : 'custom',
+          position,
+          data: storedNodeData(raw),
+        }]
       }),
       edges: project.edges.filter((edge) => edge && typeof edge.id === 'string' && typeof edge.source === 'string' && typeof edge.target === 'string'),
     })
