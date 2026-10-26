@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { DETAILS_MIN } from '../canvas/panelWidth'
+import { DETAILS_MAX_FRACTION, DETAILS_MIN } from '../canvas/panelWidth'
 import { callModel } from '../llm/callModel'
 import PanelResizeHandle from './PanelResizeHandle'
 import { requestModelOrigin, type LlmProfile } from '../storage/llmSettings'
@@ -164,7 +164,7 @@ export default function NodeEditor({
         overflow: 'auto',
       }}
     >
-      <PanelResizeHandle edge="west" width={width} min={DETAILS_MIN} label="Resize details" onWidth={onWidth} />
+      <PanelResizeHandle edge="west" width={width} min={DETAILS_MIN} fraction={DETAILS_MAX_FRACTION} label="Resize details" onWidth={onWidth} />
       <div
         style={{
           position: 'sticky',
