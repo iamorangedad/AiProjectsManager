@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { DETAILS_MIN } from '../canvas/panelWidth'
 import { callModel } from '../llm/callModel'
+import PanelResizeHandle from './PanelResizeHandle'
 import { requestModelOrigin, type LlmProfile } from '../storage/llmSettings'
 import type { ChatMessage, NodeHistoryEntry } from '../storage/nodeData'
 import { storedNodeData, type AppNode, type NodeKind } from '../storage/useStorage'
@@ -37,6 +39,8 @@ export default function NodeEditor({
   onDelete,
   onOpenSettings,
   history,
+  width,
+  onWidth,
 }: {
   node: AppNode | null
   profiles: LlmProfile[]
@@ -45,6 +49,8 @@ export default function NodeEditor({
   onDelete?: (id: string) => void
   onOpenSettings: () => void
   history: NodeHistoryEntry[]
+  width: number
+  onWidth: (width: number) => void
 }) {
   const [label, setLabel] = useState(node?.data.label ?? '')
   const [note, setNote] = useState(node?.data.note ?? '')
@@ -147,8 +153,9 @@ export default function NodeEditor({
     <aside
       ref={scroller}
       style={{
-        width: 340,
+        width,
         flexShrink: 0,
+        position: 'relative',
         borderLeft: '1px solid #e6e8ee',
         background: '#fff',
         display: 'flex',
@@ -157,6 +164,7 @@ export default function NodeEditor({
         overflow: 'auto',
       }}
     >
+      <PanelResizeHandle edge="west" width={width} min={DETAILS_MIN} label="Resize details" onWidth={onWidth} />
       <div
         style={{
           position: 'sticky',
