@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { hiddenDescendantIds, mergeDraggedNodes } from '../canvas/collapse'
-import { clampPanelWidth, DETAILS_DEFAULT, DETAILS_MIN, SIDEBAR_DEFAULT, SIDEBAR_MIN } from '../canvas/panelWidth'
+import { clampPanelWidth, DETAILS_DEFAULT, DETAILS_MAX_FRACTION, DETAILS_MIN, SIDEBAR_DEFAULT, SIDEBAR_MAX_FRACTION, SIDEBAR_MIN } from '../canvas/panelWidth'
 import { collectParentHistory } from '../storage/parentHistory'
 import { storedNodeData, useStorage, type AppNode, type NodeKind, type Project } from '../storage/useStorage'
 import { loadLlmProfiles, saveLlmProfiles, type LlmProfile } from '../storage/llmSettings'
@@ -21,9 +21,9 @@ export default function CanvasPage() {
   const { projects, loaded, writable, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState(() => clampPanelWidth(SIDEBAR_DEFAULT, SIDEBAR_MIN, window.innerWidth))
+  const [sidebarWidth, setSidebarWidth] = useState(() => clampPanelWidth(SIDEBAR_DEFAULT, SIDEBAR_MIN, window.innerWidth, SIDEBAR_MAX_FRACTION))
   const [sidebarResizing, setSidebarResizing] = useState(false)
-  const [detailsWidth, setDetailsWidth] = useState(() => clampPanelWidth(DETAILS_DEFAULT, DETAILS_MIN, window.innerWidth))
+  const [detailsWidth, setDetailsWidth] = useState(() => clampPanelWidth(DETAILS_DEFAULT, DETAILS_MIN, window.innerWidth, DETAILS_MAX_FRACTION))
   const [nodes, setNodes, onNodesChange] = useNodesState([] as any)
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as any)
   const [editingNode, setEditingNode] = useState<AppNode | null>(null)
@@ -63,8 +63,8 @@ export default function CanvasPage() {
 
   useEffect(() => {
     const onResize = () => {
-      setSidebarWidth((width) => clampPanelWidth(width, SIDEBAR_MIN, window.innerWidth))
-      setDetailsWidth((width) => clampPanelWidth(width, DETAILS_MIN, window.innerWidth))
+      setSidebarWidth((width) => clampPanelWidth(width, SIDEBAR_MIN, window.innerWidth, SIDEBAR_MAX_FRACTION))
+      setDetailsWidth((width) => clampPanelWidth(width, DETAILS_MIN, window.innerWidth, DETAILS_MAX_FRACTION))
     }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
