@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { hiddenDescendantIds, mergeDraggedNodes } from '../canvas/collapse'
 import { collectParentHistory } from '../storage/parentHistory'
 import { storedNodeData, useStorage, type AppNode, type NodeKind, type Project } from '../storage/useStorage'
 import { loadLlmProfiles, saveLlmProfiles, type LlmProfile } from '../storage/llmSettings'
@@ -303,43 +304,33 @@ export default function CanvasPage() {
   )
 
   const onNodeDragStop = useCallback(() => {
-    setTimeout(() => {
-      const current = (reactFlowInstance.current?.getNodes?.() as any[]) || (nodes as any)
-      persist(current as any, edges as any)
-    }, 0)
-  }, [nodes, edges, persist])
+    const moved = (reactFlowInstance.current?.getNodes?.() as { id: string; position?: { x: number; y: number } }[]) || []
+    const next = mergeDraggedNodes(nodes as { id: string; position: { x: number; y: number } }[], moved)
+    setNodes(next as any)
+    setTimeout(() => persist(next as any, edges as any), 0)
+  }, [nodes, edges, persist, setNodes])
 
-  const { displayNodes, displayEdges, hiddenCount } = useMemo(() => {
-    const adj = new Map<string, string[]>()
-    ;(edges as any[]).forEach((e: any) => {
-      if (!adj.has(e.source)) adj.set(e.source, [])
-      adj.get(e.source)!.push(e.target)
+  const { displayNodes, displayEdges, hiddenCount, visibleCount } = useMemo(() => {
+    const hidden = hiddenDescendantIds(edges as { source: string; target: string }[], collapsedIds)
+    const childCount = new Map<string, number>()
+    ;(edges as { source: string }[]).forEach((edge) => {
+      childCount.set(edge.source, (childCount.get(edge.source) || 0) + 1)
     })
-    const hidden = new Set<string>()
-    const queue: string[] = [...collapsedIds]
-    const visited = new Set<string>(queue)
-    while (queue.length) {
-      const cur = queue.shift()!
-      const childs = adj.get(cur) || []
-      for (const child of childs) {
-        if (!hidden.has(child)) hidden.add(child)
-        if (!visited.has(child)) {
-          visited.add(child)
-          queue.push(child)
-        }
-      }
-    }
-    const filteredNodes = (nodes as any[]).filter((n: any) => !hidden.has(n.id))
-    const filteredEdges = (edges as any[]).filter((e: any) => !hidden.has(e.source) && !hidden.has(e.target))
-    const decorated = filteredNodes.map((n: any) => {
-      const hasChildren = (adj.get(n.id)?.length || 0) > 0
-      const isCollapsed = collapsedIds.has(n.id)
-      return {
-        ...n,
-        data: { ...n.data, hasChildren, isCollapsed, onToggle: () => toggleCollapse(n.id) },
-      }
-    })
-    return { displayNodes: decorated, displayEdges: filteredEdges, hiddenCount: hidden.size }
+    const decorated = (nodes as any[]).map((node: any) => ({
+      ...node,
+      hidden: hidden.has(node.id),
+      data: {
+        ...node.data,
+        hasChildren: (childCount.get(node.id) || 0) > 0,
+        isCollapsed: collapsedIds.has(node.id),
+        onToggle: () => toggleCollapse(node.id),
+      },
+    }))
+    const decoratedEdges = (edges as any[]).map((edge: any) => ({
+      ...edge,
+      hidden: hidden.has(edge.source) || hidden.has(edge.target),
+    }))
+    return { displayNodes: decorated, displayEdges: decoratedEdges, hiddenCount: hidden.size, visibleCount: decorated.filter((node) => !node.hidden).length }
   }, [nodes, edges, collapsedIds, toggleCollapse])
 
   if (!loaded) {
@@ -392,7 +383,7 @@ export default function CanvasPage() {
           <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: '#111827' }}>{activeProject?.name || '—'}</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span style={{ fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#6b7280' }}>
-              {displayNodes.length} visible · {hiddenCount > 0 ? `${hiddenCount} hidden · ` : ''}{edges.length} edges
+              {visibleCount} visible · {hiddenCount > 0 ? `${hiddenCount} hidden · ` : ''}{edges.length} edges
             </span>
             <span title={writable ? 'Quad storage: chrome.local + IndexedDB + chrome.sync + localStorage, auto-recovery' : 'A saved copy could not be read, so nothing was overwritten'} style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: writable ? '#111827' : '#f97316', border: `1px solid ${writable ? '#e6e8ee' : '#fdba74'}`, background: '#fff', padding: '3px 7px', borderRadius: 999 }}>{writable ? 'Persisted' : 'Not saved'}</span>
             {hiddenCount > 0 && (
