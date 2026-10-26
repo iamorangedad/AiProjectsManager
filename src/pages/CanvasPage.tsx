@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { hiddenDescendantIds, mergeDraggedNodes } from '../canvas/collapse'
+import { clampPanelWidth, DETAILS_DEFAULT, DETAILS_MIN, SIDEBAR_DEFAULT, SIDEBAR_MIN } from '../canvas/panelWidth'
 import { collectParentHistory } from '../storage/parentHistory'
 import { storedNodeData, useStorage, type AppNode, type NodeKind, type Project } from '../storage/useStorage'
 import { loadLlmProfiles, saveLlmProfiles, type LlmProfile } from '../storage/llmSettings'
@@ -20,6 +21,9 @@ export default function CanvasPage() {
   const { projects, loaded, writable, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(() => clampPanelWidth(SIDEBAR_DEFAULT, SIDEBAR_MIN, window.innerWidth))
+  const [sidebarResizing, setSidebarResizing] = useState(false)
+  const [detailsWidth, setDetailsWidth] = useState(() => clampPanelWidth(DETAILS_DEFAULT, DETAILS_MIN, window.innerWidth))
   const [nodes, setNodes, onNodesChange] = useNodesState([] as any)
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as any)
   const [editingNode, setEditingNode] = useState<AppNode | null>(null)
@@ -56,6 +60,15 @@ export default function CanvasPage() {
   useEffect(() => {
     setCollapsedIds(new Set())
   }, [activeId])
+
+  useEffect(() => {
+    const onResize = () => {
+      setSidebarWidth((width) => clampPanelWidth(width, SIDEBAR_MIN, window.innerWidth))
+      setDetailsWidth((width) => clampPanelWidth(width, DETAILS_MIN, window.innerWidth))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => {
     void loadLlmProfiles().then(setProfiles)
@@ -343,6 +356,10 @@ export default function CanvasPage() {
         projects={projects}
         activeId={activeId}
         collapsed={sidebarCollapsed}
+        width={sidebarWidth}
+        resizing={sidebarResizing}
+        onWidth={setSidebarWidth}
+        onResizing={setSidebarResizing}
         onSelect={(id) => {
           setActiveId(id)
           setEditingNode(null)
@@ -519,7 +536,7 @@ export default function CanvasPage() {
             Right-click canvas → Add Node or model node · Click a model node to ask in the details · Settings stores cloud keys and local models
           </div>
         </div>
-        <NodeEditor key={editingNode?.id ?? 'none'} node={editingNode} profiles={profiles} history={parentHistory} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} onOpenSettings={() => setSettingsOpen(true)} />
+        <NodeEditor key={editingNode?.id ?? 'none'} node={editingNode} profiles={profiles} history={parentHistory} width={detailsWidth} onWidth={setDetailsWidth} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} onOpenSettings={() => setSettingsOpen(true)} />
         </div>
       </div>
 
