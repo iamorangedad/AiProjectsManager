@@ -1,4 +1,4 @@
-import { SIDEBAR_MIN } from '../canvas/panelWidth'
+import { SIDEBAR_MAX_FRACTION, SIDEBAR_MIN } from '../canvas/panelWidth'
 import type { Project } from '../storage/useStorage'
 import PanelResizeHandle from './PanelResizeHandle'
 
@@ -48,7 +48,7 @@ export default function ProjectSidebar({
       }}
     >
       {!collapsed && (
-        <PanelResizeHandle edge="east" width={width} min={SIDEBAR_MIN} label="Resize projects" onWidth={onWidth} onDragging={onResizing} />
+        <PanelResizeHandle edge="east" width={width} min={SIDEBAR_MIN} fraction={SIDEBAR_MAX_FRACTION} label="Resize projects" onWidth={onWidth} onDragging={onResizing} />
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: collapsed ? '10px 8px' : '12px 12px', borderBottom: '1px solid #e6e8ee' }}>
         {!collapsed && <span style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#111827' }}>Projects</span>}
