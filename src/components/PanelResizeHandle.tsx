@@ -5,6 +5,7 @@ export default function PanelResizeHandle({
   edge,
   width,
   min,
+  fraction,
   label,
   onWidth,
   onDragging,
@@ -12,6 +13,7 @@ export default function PanelResizeHandle({
   edge: 'east' | 'west'
   width: number
   min: number
+  fraction: number
   label: string
   onWidth: (width: number) => void
   onDragging?: (dragging: boolean) => void
@@ -48,7 +50,7 @@ export default function PanelResizeHandle({
           document.body.style.userSelect = ''
         }
         const move = (ev: PointerEvent) => {
-          onWidth(clampPanelWidth(widthFromDrag(startWidth, startX, ev.clientX, edge), min, window.innerWidth))
+          onWidth(clampPanelWidth(widthFromDrag(startWidth, startX, ev.clientX, edge), min, window.innerWidth, fraction))
         }
         const up = () => {
           handle.removeEventListener('pointermove', move)
