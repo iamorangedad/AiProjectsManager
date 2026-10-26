@@ -1,9 +1,15 @@
+import { SIDEBAR_MIN } from '../canvas/panelWidth'
 import type { Project } from '../storage/useStorage'
+import PanelResizeHandle from './PanelResizeHandle'
 
 export default function ProjectSidebar({
   projects,
   activeId,
   collapsed,
+  width,
+  resizing,
+  onWidth,
+  onResizing,
   onSelect,
   onCreate,
   onRename,
@@ -15,6 +21,10 @@ export default function ProjectSidebar({
   projects: Project[]
   activeId: string | null
   collapsed: boolean
+  width: number
+  resizing?: boolean
+  onWidth: (width: number) => void
+  onResizing?: (resizing: boolean) => void
   onSelect: (id: string) => void
   onCreate: () => void
   onRename: (id: string, name: string) => void
@@ -26,16 +36,20 @@ export default function ProjectSidebar({
   return (
     <div
       style={{
-        width: collapsed ? 48 : 220,
+        width: collapsed ? 48 : width,
         flexShrink: 0,
+        position: 'relative',
         borderRight: '1px solid #e6e8ee',
         background: '#fff',
         display: 'flex',
         flexDirection: 'column',
-        transition: 'width 0.2s',
+        transition: resizing ? 'none' : 'width 0.2s',
         overflow: 'hidden',
       }}
     >
+      {!collapsed && (
+        <PanelResizeHandle edge="east" width={width} min={SIDEBAR_MIN} label="Resize projects" onWidth={onWidth} onDragging={onResizing} />
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: collapsed ? '10px 8px' : '12px 12px', borderBottom: '1px solid #e6e8ee' }}>
         {!collapsed && <span style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#111827' }}>Projects</span>}
         <button
