@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Canvas Diagram Tool",
   "short_name": "Canvas",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A chrome extension for creating diagram canvases with nodes, edges, and project management",
   "icons": {
     "16": "icons/icon16.png",
