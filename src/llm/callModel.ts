@@ -31,7 +31,6 @@ export function buildChatRequest(model: string, messages: ChatMessage[], context
   return {
     model,
     messages: buildChatMessages(messages, fullContext),
-    history,
   }
 }
 
