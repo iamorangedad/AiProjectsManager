@@ -2,6 +2,8 @@
 
 A Chrome extension (MV3) for planning work on a diagram canvas. Create projects, connect task nodes, and ask a model from a node on the right. The current release is **v1.1.0**.
 
+**[Install Canvas Diagram Tool from the Chrome Web Store](https://chromewebstore.google.com/detail/canvas-diagram-tool/hpeakcadccgijjmimdnofpkgdfaibnap)**
+
 ![Research plan on the canvas, with a model node open in the details panel](docs/canvas.png)
 
 ## Features
@@ -76,6 +78,10 @@ npm run lint     # oxlint
 ```
 
 ## Load in Chrome
+
+Install the published extension from the [Chrome Web Store](https://chromewebstore.google.com/detail/canvas-diagram-tool/hpeakcadccgijjmimdnofpkgdfaibnap).
+
+To load a local build instead:
 
 1. `npm run build`
 2. Open `chrome://extensions` and turn on **Developer mode**
