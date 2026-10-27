@@ -36,8 +36,7 @@ const request = buildChatRequest('mock', [{ role: 'user', content: 'Next step?' 
   },
 ])
 assert.equal(request.model, 'mock')
-assert.equal(request.history.length, 2)
-assert.equal(request.history[0].label, 'Research')
+assert.equal('history' in request, false)
 assert.match(request.messages[0].content, /Parent nodes:/)
 assert.match(request.messages[0].content, /Research/)
 assert.match(request.messages[0].content, /https:\/\/example.com\/spec/)
