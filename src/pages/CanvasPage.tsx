@@ -77,13 +77,8 @@ export default function CanvasPage() {
   const toggleCollapse = useCallback((nodeId: string) => {
     setCollapsedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(nodeId)) {
-        next.delete(nodeId)
-        setTimeout(() => setToast('Expanded'), 0)
-      } else {
-        next.add(nodeId)
-        setTimeout(() => setToast('Collapsed'), 0)
-      }
+      if (next.has(nodeId)) next.delete(nodeId)
+      else next.add(nodeId)
       return next
     })
   }, [])
