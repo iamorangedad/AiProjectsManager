@@ -1,18 +1,30 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
-import { copyFileSync } from 'node:fs'
+import { defineConfig, type Plugin } from 'vite'
+import { copyFileSync, mkdirSync, readdirSync } from 'node:fs'
+
+function chromeExtension(): Plugin {
+  return {
+    name: 'chrome-extension',
+    transformIndexHtml(html) {
+      // Extension pages cannot load crossorigin module scripts.
+      return html.replace(/\s+crossorigin(?:="[^"]*")?/g, '')
+    },
+    closeBundle() {
+      copyFileSync('manifest.json', 'dist/manifest.json')
+      copyFileSync('background.js', 'dist/background.js')
+      mkdirSync('dist/icons', { recursive: true })
+      for (const file of readdirSync('icons')) {
+        if (!file.endsWith('.png')) continue
+        copyFileSync(`icons/${file}`, `dist/icons/${file}`)
+      }
+    },
+  }
+}
 
 export default defineConfig({
   plugins: [
     react(),
-    {
-      name: 'copy-manifest',
-      closeBundle() {
-        try {
-          copyFileSync('manifest.json', 'dist/manifest.json')
-        } catch {}
-      },
-    },
+    chromeExtension(),
   ],
   base: './',
   build: {
@@ -21,7 +33,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         newtab: 'newtab.html',
-        popup: 'popup.html',
       },
     },
   },

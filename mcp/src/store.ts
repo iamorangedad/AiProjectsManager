@@ -2,11 +2,18 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+export interface NodeData {
+  label: string;
+  url?: string;
+  percentage: number;
+  [key: string]: unknown;
+}
+
 export interface AppNode {
   id: string;
   type: string;
   position: { x: number; y: number };
-  data: { label: string; url?: string; percentage: number };
+  data: NodeData;
 }
 
 export interface AppEdge {
@@ -74,11 +81,16 @@ export function validateProjects(raw: unknown): Project[] | null {
       if (typeof data.label !== "string") return null;
       const percentage = typeof data.percentage === "number" ? clampPercent(data.percentage) : 0;
       const url = typeof data.url === "string" && data.url.trim() ? data.url : undefined;
+      const extra: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (key === "label" || key === "url" || key === "percentage") continue;
+        extra[key] = value;
+      }
       nodes.push({
         id: node.id,
         type: typeof node.type === "string" ? node.type : "custom",
         position: { x: position.x, y: position.y },
-        data: { label: data.label, url, percentage },
+        data: { ...extra, label: data.label, url, percentage },
       });
     }
     const edges: AppEdge[] = [];

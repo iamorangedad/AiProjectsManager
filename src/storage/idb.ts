@@ -21,35 +21,30 @@ function openDB(): Promise<IDBDatabase> {
 }
 
 export async function idbGet(): Promise<{ data: unknown; ts: number } | null> {
-  try {
-    const db = await openDB()
-    return await new Promise((resolve) => {
-      const tx = db.transaction(STORE, 'readonly')
-      const store = tx.objectStore(STORE)
-      const req = store.get(KEY)
-      req.onsuccess = () => {
-        const data = req.result as unknown
-        const metaReq = store.get(META_KEY)
-        metaReq.onsuccess = () => {
-          const ts = (metaReq.result as number) || 0
-          db.close()
-          if (data === undefined) resolve(null)
-          else resolve({ data, ts })
-        }
-        metaReq.onerror = () => {
-          db.close()
-          if (data === undefined) resolve(null)
-          else resolve({ data, ts: 0 })
-        }
-      }
-      req.onerror = () => {
+  const db = await openDB()
+  return await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly')
+    const store = tx.objectStore(STORE)
+    const req = store.get(KEY)
+    req.onsuccess = () => {
+      const data = req.result as unknown
+      const metaReq = store.get(META_KEY)
+      metaReq.onsuccess = () => {
+        const ts = (metaReq.result as number) || 0
         db.close()
-        resolve(null)
+        if (data === undefined) resolve(null)
+        else resolve({ data, ts })
       }
-    })
-  } catch {
-    return null
-  }
+      metaReq.onerror = () => {
+        db.close()
+        reject(metaReq.error)
+      }
+    }
+    req.onerror = () => {
+      db.close()
+      reject(req.error)
+    }
+  })
 }
 
 export async function idbSet(data: unknown, ts = Date.now()): Promise<void> {

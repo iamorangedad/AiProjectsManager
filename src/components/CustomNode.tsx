@@ -4,29 +4,38 @@ export type CustomNodeData = {
   label: string
   url?: string
   percentage: number
+  kind?: 'task' | 'model'
   hasChildren?: boolean
   isCollapsed?: boolean
   onToggle?: () => void
 }
 
+const NODE_WIDTH = 148
+const NODE_HEIGHT = 52
+
 export default function CustomNode({ data, selected }: NodeProps) {
-  const d = data as unknown as CustomNodeData
+  const d = (data ?? { label: 'Unnamed', percentage: 0 }) as unknown as CustomNodeData
   const pct = Math.max(0, Math.min(100, d.percentage ?? 0))
+  const accent = pct >= 100 ? '#16a34a' : '#2563eb'
   return (
     <div
       style={{
-        minWidth: 180,
-        background: selected ? '#f0f7ff' : '#fff',
-        border: `1.5px solid ${selected ? '#3182ce' : '#e2e8f0'}`,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        background: '#fff',
+        border: `1px solid ${selected ? '#2563eb' : '#e6e8ee'}`,
+        borderTop: `3px solid ${accent}`,
         borderRadius: 10,
-        padding: '12px 14px',
-        boxShadow: selected ? '0 4px 12px rgba(49,130,206,0.18)' : '0 1px 4px rgba(0,0,0,0.07)',
+        padding: '6px 8px 5px',
+        boxShadow: selected ? '0 8px 18px rgba(37,99,235,0.12)' : '0 1px 2px rgba(17,24,39,0.05)',
         cursor: 'pointer',
         position: 'relative',
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ width: 10, height: 10, background: '#3182ce', zIndex: 10 }} />
-      <Handle type="source" position={Position.Right} style={{ width: 10, height: 10, background: '#3182ce', zIndex: 10 }} />
+      <Handle type="target" position={Position.Left} style={{ width: 7, height: 7, background: accent, border: '2px solid #fff', zIndex: 10 }} />
+      <Handle type="source" position={Position.Right} style={{ width: 7, height: 7, background: accent, border: '2px solid #fff', zIndex: 10 }} />
       {d.hasChildren && (
         <button
           onClick={(e) => {
@@ -38,15 +47,15 @@ export default function CustomNode({ data, selected }: NodeProps) {
             position: 'absolute',
             right: 6,
             top: 6,
-            width: 18,
-            height: 18,
-            borderRadius: '50%',
-            border: '1px solid #3182ce',
+            width: 14,
+            height: 14,
+            borderRadius: 4,
+            border: '1px solid #e6e8ee',
             background: '#fff',
-            color: '#3182ce',
+            color: '#111827',
             fontSize: 11,
             fontWeight: 700,
-            lineHeight: '16px',
+            lineHeight: '12px',
             textAlign: 'center',
             cursor: 'pointer',
             display: 'flex',
@@ -54,31 +63,32 @@ export default function CustomNode({ data, selected }: NodeProps) {
             justifyContent: 'center',
             padding: 0,
             zIndex: 5,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
           }}
         >
           {d.isCollapsed ? '+' : '−'}
         </button>
       )}
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#1a202c', wordBreak: 'break-word', paddingRight: d.hasChildren ? 8 : 0 }}>
+      <div
+        title={d.label || 'Unnamed'}
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: '-0.01em',
+          color: '#111827',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          paddingRight: d.hasChildren ? 16 : 0,
+          lineHeight: '16px',
+        }}
+      >
         {d.label || 'Unnamed'}
       </div>
-      {d.url && (
-        <a
-          href={d.url}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          style={{ fontSize: 11, color: '#3182ce', wordBreak: 'break-all', display: 'block', marginTop: 4 }}
-        >
-          {d.url}
-        </a>
-      )}
-      <div style={{ marginTop: 8 }}>
-        <div style={{ height: 6, background: '#edf2f7', borderRadius: 99, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#38a169' : '#3182ce', transition: 'width 0.2s' }} />
+      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ flex: 1, height: 4, background: '#eef1f4', borderRadius: 99, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: accent, transition: 'width 0.2s' }} />
         </div>
-        <div style={{ fontSize: 11, color: '#718096', marginTop: 4 }}>{pct}%</div>
+        <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', fontVariantNumeric: 'tabular-nums' }}>{d.kind === 'model' ? 'LLM' : `${pct}%`}</div>
       </div>
     </div>
   )

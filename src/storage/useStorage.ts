@@ -1,6 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { idbGet, idbSet, requestPersistent } from './idb'
 import { mcpGet, mcpSet } from './mcpSync'
+import { storedNodeData, type AppNodeData, type NodeKind } from './nodeData'
+import { pickSnapshot, type Snapshot } from './pickSnapshot'
+
+export { storedNodeData, type AppNodeData, type NodeKind }
 
 const STORAGE_KEY = 'projects'
 const META_KEY = 'projects_meta_ts'
@@ -16,6 +20,7 @@ declare const chrome: {
       set: (v: Record<string, unknown>, cb?: () => void) => void
     }
   }
+  runtime?: { lastError?: { message?: string } }
 }
 
 function hasChromeLocal() {
@@ -29,7 +34,7 @@ export interface AppNode {
   id: string
   type: string
   position: { x: number; y: number }
-  data: { label: string; url?: string; percentage: number }
+  data: AppNodeData
 }
 
 export interface AppEdge {
@@ -47,14 +52,41 @@ export interface Project {
   edges: AppEdge[]
 }
 
-function lsGet(): { data: Project[] | null; ts: number } {
+function asProjects(value: unknown): Project[] | null {
+  if (!Array.isArray(value)) return null
+  const projects: Project[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return null
+    const project = item as Project
+    if (typeof project.id !== 'string' || typeof project.name !== 'string' || !Array.isArray(project.nodes) || !Array.isArray(project.edges)) return null
+    projects.push({
+      ...project,
+      nodes: project.nodes.flatMap((node) => {
+        if (!node || typeof node.id !== 'string') return []
+        const position = node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number' ? node.position : { x: 0, y: 0 }
+        const raw = node.data && typeof node.data === 'object' ? node.data : undefined
+        return [{
+          id: node.id,
+          type: typeof node.type === 'string' ? node.type : 'custom',
+          position,
+          data: storedNodeData(raw),
+        }]
+      }),
+      edges: project.edges.filter((edge) => edge && typeof edge.id === 'string' && typeof edge.source === 'string' && typeof edge.target === 'string'),
+    })
+  }
+  return projects
+}
+
+function lsGet(): Snapshot<Project> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const tsRaw = localStorage.getItem(META_KEY)
-    if (!raw) return { data: null, ts: 0 }
-    return { data: JSON.parse(raw) as Project[], ts: tsRaw ? Number(tsRaw) : 0 }
+    if (!raw) return { data: null, ts: 0, ok: true }
+    const data = asProjects(JSON.parse(raw))
+    return { data, ts: tsRaw ? Number(tsRaw) : 0, ok: data !== null || raw === 'null' }
   } catch {
-    return { data: null, ts: 0 }
+    return { data: null, ts: 0, ok: false }
   }
 }
 
@@ -65,18 +97,20 @@ function lsSet(projects: Project[], ts: number) {
   } catch {}
 }
 
-function chromeGetLocal(): Promise<{ data: Project[] | null; ts: number }> {
+function chromeGet(area: 'local' | 'sync'): Promise<Snapshot<Project>> {
   return new Promise((resolve) => {
-    if (!hasChromeLocal()) return resolve({ data: null, ts: 0 })
+    const storage = area === 'local' ? (hasChromeLocal() ? chrome.storage.local : null) : hasChromeSync() ? chrome.storage.sync : null
+    if (!storage) return resolve({ data: null, ts: 0, ok: true })
     try {
-      chrome.storage.local.get([STORAGE_KEY, META_KEY], (r) => {
-        const data = r[STORAGE_KEY] as Project[] | undefined
-        const ts = (r[META_KEY] as number) || 0
-        if (!data || !Array.isArray(data)) resolve({ data: null, ts: 0 })
-        else resolve({ data, ts })
+      storage.get([STORAGE_KEY, META_KEY], (r) => {
+        if (chrome.runtime?.lastError) return resolve({ data: null, ts: 0, ok: false })
+        const data = asProjects(r?.[STORAGE_KEY])
+        const ts = (r?.[META_KEY] as number) || 0
+        const raw = r?.[STORAGE_KEY]
+        resolve({ data, ts, ok: data !== null || raw == null })
       })
     } catch {
-      resolve({ data: null, ts: 0 })
+      resolve({ data: null, ts: 0, ok: false })
     }
   })
 }
@@ -86,22 +120,6 @@ function chromeSetLocal(projects: Project[], ts: number) {
   try {
     chrome.storage.local.set({ [STORAGE_KEY]: projects, [META_KEY]: ts })
   } catch {}
-}
-
-function chromeGetSync(): Promise<{ data: Project[] | null; ts: number }> {
-  return new Promise((resolve) => {
-    if (!hasChromeSync()) return resolve({ data: null, ts: 0 })
-    try {
-      chrome.storage.sync!.get([STORAGE_KEY, META_KEY], (r) => {
-        const data = r[STORAGE_KEY] as Project[] | undefined
-        const ts = (r[META_KEY] as number) || 0
-        if (!data || !Array.isArray(data)) resolve({ data: null, ts: 0 })
-        else resolve({ data, ts })
-      })
-    } catch {
-      resolve({ data: null, ts: 0 })
-    }
-  })
 }
 
 function chromeSetSync(projects: Project[], ts: number) {
@@ -114,33 +132,30 @@ function chromeSetSync(projects: Project[], ts: number) {
   } catch {}
 }
 
-function pickBest(candidates: Array<{ data: Project[] | null; ts: number; src: string }>): { data: Project[]; ts: number } | null {
-  const valid = candidates.filter((c) => c.data && Array.isArray(c.data) && c.data.length > 0) as Array<{ data: Project[]; ts: number; src: string }>
-  if (valid.length === 0) return null
-  valid.sort((a, b) => {
-    if (b.ts !== a.ts) return b.ts - a.ts
-    const al = a.data.reduce((s, p) => s + p.nodes.length + p.edges.length, 0)
-    const bl = b.data.reduce((s, p) => s + p.nodes.length + p.edges.length, 0)
-    return bl - al
-  })
-  return { data: valid[0].data, ts: valid[0].ts }
+async function readIdb(): Promise<Snapshot<Project>> {
+  try {
+    const saved = await idbGet()
+    if (!saved) return { data: null, ts: 0, ok: true }
+    const data = asProjects(saved.data)
+    return { data, ts: saved.ts, ok: data !== null }
+  } catch {
+    return { data: null, ts: 0, ok: false }
+  }
 }
 
-async function loadBest(): Promise<{ data: Project[]; ts: number } | null> {
-  const [local, sync, idb, ls, mcp] = await Promise.all([
-    chromeGetLocal(),
-    chromeGetSync(),
-    idbGet().then((r) => (r ? { data: r.data as Project[], ts: r.ts } : { data: null, ts: 0 })),
-    Promise.resolve(lsGet()),
-    mcpGet(),
-  ])
-  return pickBest([
-    { data: local.data, ts: local.ts, src: 'local' },
-    { data: sync.data, ts: sync.ts, src: 'sync' },
-    { data: idb.data as Project[] | null, ts: idb.ts, src: 'idb' },
-    { data: ls.data, ts: ls.ts, src: 'ls' },
-    { data: mcp.data, ts: mcp.ts, src: 'mcp' },
-  ])
+async function readMcp(): Promise<Snapshot<Project>> {
+  const remote = await mcpGet()
+  if (!remote.data) return { data: null, ts: 0, ok: true }
+  const data = asProjects(remote.data)
+  if (!data) return { data: null, ts: 0, ok: true }
+  return { data, ts: remote.ts, ok: true }
+}
+
+async function loadBest(): Promise<{ projects: Project[] | null; readsOk: boolean; ts: number }> {
+  const [local, sync, idb, ls, mcp] = await Promise.all([chromeGet('local'), chromeGet('sync'), readIdb(), Promise.resolve(lsGet()), readMcp()])
+  const picked = pickSnapshot([local, sync, idb, ls, mcp])
+  const winner = [local, sync, idb, ls, mcp].find((candidate) => candidate.data === picked.projects)
+  return { projects: picked.projects, readsOk: picked.readsOk, ts: winner?.ts ?? 0 }
 }
 
 function persistAll(projects: Project[], ts: number, opts?: { skipMcp?: boolean }) {
@@ -162,26 +177,33 @@ function validateProjects(raw: unknown): Project[] | null {
 export function useStorage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [writable, setWritable] = useState(true)
   const [externalRev, setExternalRev] = useState(0)
   const loadedRef = useRef(false)
+  const canWrite = useRef(false)
   const tsRef = useRef(0)
 
   useEffect(() => {
     void requestPersistent()
     let cancelled = false
     void (async () => {
-      const best = await loadBest()
+      let loadedSnapshot = await loadBest()
+      if (!loadedSnapshot.readsOk) {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        if (cancelled) return
+        loadedSnapshot = await loadBest()
+      }
       if (cancelled) return
-      if (best && best.data.length > 0) {
-        tsRef.current = best.ts
-        setProjects(best.data)
-        persistAll(best.data, best.ts)
+      const { projects: best, readsOk, ts } = loadedSnapshot
+      canWrite.current = readsOk
+      setWritable(readsOk)
+      tsRef.current = ts
+      if (best && best.length > 0) {
+        setProjects(best)
+        if (readsOk) persistAll(best, ts)
       } else {
         const init: Project = { id: 'p1', name: 'Project 1', nodes: [], edges: [] }
-        const ts = Date.now()
-        tsRef.current = ts
         setProjects([init])
-        persistAll([init], ts)
       }
       loadedRef.current = true
       setLoaded(true)
@@ -196,12 +218,14 @@ export function useStorage() {
     let cancelled = false
     const timer = setInterval(() => {
       void (async () => {
+        if (!canWrite.current) return
         const remote = await mcpGet()
-        if (cancelled || !remote.data || remote.ts <= tsRef.current) return
+        const data = remote.data ? asProjects(remote.data) : null
+        if (cancelled || !data || remote.ts <= tsRef.current) return
         tsRef.current = remote.ts
-        setProjects(remote.data)
+        setProjects(data)
         setExternalRev((n) => n + 1)
-        persistAll(remote.data, remote.ts, { skipMcp: true })
+        persistAll(data, remote.ts, { skipMcp: true })
       })()
     }, 2000)
     return () => {
@@ -214,6 +238,7 @@ export function useStorage() {
     const ts = Date.now()
     tsRef.current = ts
     setProjects(next)
+    if (!canWrite.current) return
     persistAll(next, ts)
   }, [])
 
@@ -282,5 +307,5 @@ export function useStorage() {
     [persist],
   )
 
-  return { projects, loaded, externalRev, setProjects: persist, addProject, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects }
+  return { projects, loaded, writable, externalRev, setProjects: persist, addProject, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects }
 }

@@ -1,33 +1,55 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
+import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useStorage, type AppNode, type Project } from '../storage/useStorage'
+import { hiddenDescendantIds, mergeDraggedNodes } from '../canvas/collapse'
+import { clampPanelWidth, DETAILS_DEFAULT, DETAILS_MAX_FRACTION, DETAILS_MIN, SIDEBAR_DEFAULT, SIDEBAR_MAX_FRACTION, SIDEBAR_MIN } from '../canvas/panelWidth'
+import { collectParentHistory } from '../storage/parentHistory'
+import { storedNodeData, useStorage, type AppNode, type NodeKind, type Project } from '../storage/useStorage'
+import { loadLlmProfiles, saveLlmProfiles, type LlmProfile } from '../storage/llmSettings'
+import SettingsPanel from '../components/SettingsPanel'
 import CustomNode from '../components/CustomNode'
 import ProjectSidebar from '../components/ProjectSidebar'
 import NodeEditor from '../components/NodeEditor'
 
 const nodeTypes: NodeTypes = { custom: CustomNode }
-const arrowMarker = { type: MarkerType.ArrowClosed, width: 18, height: 18, color: '#3182ce' } as const
+const EDGE = '#64748b'
+const arrowMarker = { type: MarkerType.ArrowClosed, width: 16, height: 16, color: EDGE } as const
+const edgeStyle = { stroke: EDGE, strokeWidth: 1.25 }
+const fitViewOptions = { padding: 0.2, maxZoom: 1 }
 
 export default function CanvasPage() {
-  const { projects, loaded, externalRev, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
+  const { projects, loaded, writable, externalRev, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(() => clampPanelWidth(SIDEBAR_DEFAULT, SIDEBAR_MIN, window.innerWidth, SIDEBAR_MAX_FRACTION))
+  const [sidebarResizing, setSidebarResizing] = useState(false)
+  const [detailsWidth, setDetailsWidth] = useState(() => clampPanelWidth(DETAILS_DEFAULT, DETAILS_MIN, window.innerWidth, DETAILS_MAX_FRACTION))
   const [nodes, setNodes, onNodesChange] = useNodesState([] as any)
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as any)
   const [editingNode, setEditingNode] = useState<AppNode | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
   const [edgeCtxMenu, setEdgeCtxMenu] = useState<{ x: number; y: number; edgeId: string } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [profiles, setProfiles] = useState<LlmProfile[]>([])
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const flowRef = useRef<HTMLDivElement>(null)
   const reactFlowInstance = useRef<any>(null)
+  const flowHydrated = useRef(false)
+  const fittedProjectId = useRef<string | null>(null)
 
   const activeProject = useMemo(() => projects.find((p) => p.id === activeId) || null, [projects, activeId])
-  const projectsRef = useRef(projects)
-  useEffect(() => {
-    projectsRef.current = projects
-  }, [projects])
+  const parentHistory = useMemo(
+    () =>
+      editingNode
+        ? collectParentHistory(editingNode.id, nodes, edges)
+        : [],
+    [editingNode, nodes, edges],
+  )
+  const projectSyncKey = activeProject
+    ? `${activeProject.id}|${activeProject.nodes.map((n) => n.id).join(',')}|${activeProject.edges.map((e) => `${e.id}:${e.source}:${e.target}`).join(',')}`
+    : ''
+  const expectedNodeIds = activeProject ? activeProject.nodes.map((n) => n.id).join(',') : ''
 
   useEffect(() => {
     if (!loaded) return
@@ -43,6 +65,19 @@ export default function CanvasPage() {
     setCollapsedIds(new Set())
   }, [activeId])
 
+  useEffect(() => {
+    const onResize = () => {
+      setSidebarWidth((width) => clampPanelWidth(width, SIDEBAR_MIN, window.innerWidth, SIDEBAR_MAX_FRACTION))
+      setDetailsWidth((width) => clampPanelWidth(width, DETAILS_MIN, window.innerWidth, DETAILS_MAX_FRACTION))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    void loadLlmProfiles().then(setProfiles)
+  }, [])
+
   const toggleCollapse = useCallback((nodeId: string) => {
     setCollapsedIds((prev) => {
       const next = new Set(prev)
@@ -53,40 +88,60 @@ export default function CanvasPage() {
   }, [])
 
   useEffect(() => {
-    if (!activeId) return
-    const project = projectsRef.current.find((p) => p.id === activeId)
-    if (!project) {
-      setNodes([])
-      setEdges([])
+    if (!loaded || !activeProject) {
+      flowHydrated.current = false
+      if (loaded) {
+        setNodes([])
+        setEdges([])
+      }
       return
     }
-    const flowNodes = project.nodes.map((n) => ({
+    flowHydrated.current = false
+    const flowNodes = activeProject.nodes.map((n) => ({
       id: n.id,
-      type: 'custom',
-      position: n.position,
-      data: n.data as any,
+      type: n.type || 'custom',
+      position: n.position && typeof n.position.x === 'number' ? n.position : { x: 0, y: 0 },
+      data: storedNodeData(n.data),
     }))
-    const flowEdges = project.edges.map((e) => ({
+    const flowEdges = activeProject.edges.map((e) => ({
       id: e.id,
       source: e.source,
       target: e.target,
       sourceHandle: e.sourceHandle,
       targetHandle: e.targetHandle,
       markerEnd: arrowMarker,
-      style: { stroke: '#3182ce', strokeWidth: 1.5 },
+      style: edgeStyle,
     }))
     setNodes(flowNodes as any)
     setEdges(flowEdges as any)
-  }, [activeId, externalRev, setNodes, setEdges])
+    flowHydrated.current = true
+  }, [loaded, projectSyncKey, externalRev])
+
+  const flowNodeKey = (nodes as any[]).map((n) => n.id).join(',')
+  useEffect(() => {
+    if (!activeId || !flowHydrated.current || !expectedNodeIds || flowNodeKey !== expectedNodeIds) return
+    if (fittedProjectId.current === activeId) return
+    const frame = requestAnimationFrame(() => {
+      reactFlowInstance.current?.fitView?.(fitViewOptions)
+    })
+    const timer = window.setTimeout(() => {
+      reactFlowInstance.current?.fitView?.(fitViewOptions)
+      fittedProjectId.current = activeId
+    }, 60)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [activeId, expectedNodeIds, flowNodeKey])
 
   const persist = useCallback(
     (nextNodes: any[], nextEdges: any[]) => {
-      if (!activeId || !activeProject) return
+      if (!flowHydrated.current || !activeId || !activeProject) return
       const toAppNodes: AppNode[] = nextNodes.map((n: any) => ({
         id: n.id,
         type: n.type || 'custom',
         position: n.position,
-        data: { label: n.data.label, url: n.data.url, percentage: n.data.percentage },
+        data: storedNodeData(n.data),
       }))
       const toAppEdges = nextEdges.map((e: any) => ({
         id: e.id,
@@ -109,7 +164,7 @@ export default function CanvasPage() {
   const onConnect = useCallback(
     (params: Connection) => {
       setEdges((eds) => {
-        const next = addEdge({ ...params, id: `e${Date.now()}`, markerEnd: arrowMarker, style: { stroke: '#3182ce', strokeWidth: 1.5 } }, eds)
+        const next = addEdge({ ...params, id: `e${Date.now()}`, markerEnd: arrowMarker, style: edgeStyle }, eds)
         setTimeout(() => persist((nodes as any), next as any), 0)
         showToast('Connected')
         return next
@@ -144,8 +199,7 @@ export default function CanvasPage() {
   )
 
   const onNodeClick = useCallback((_e: any, node: any) => {
-    const clean = { label: node.data.label, url: node.data.url, percentage: node.data.percentage }
-    setEditingNode({ id: node.id, type: node.type, position: node.position, data: clean as any })
+    setEditingNode({ id: node.id, type: node.type, position: node.position, data: storedNodeData(node.data) })
   }, [])
 
   const onPaneContextMenu = useCallback(
@@ -160,12 +214,12 @@ export default function CanvasPage() {
   )
 
   const addNodeAt = useCallback(
-    (x: number, y: number) => {
+    (x: number, y: number, kind: NodeKind = 'task') => {
       const newNode: AppNode = {
         id: `n${Date.now()}`,
         type: 'custom',
         position: { x, y },
-        data: { label: 'New Node', percentage: 0 },
+        data: storedNodeData(kind === 'model' ? { label: 'Model call', percentage: 0, kind: 'model' } : { label: 'New Node', percentage: 0 }),
       }
       const flowNode: any = { id: newNode.id, type: 'custom', position: { x, y }, data: newNode.data }
       const nextNodes = [...(nodes as any), flowNode]
@@ -178,11 +232,12 @@ export default function CanvasPage() {
   )
 
   const handleSaveNode = useCallback(
-    (updated: AppNode) => {
+    (updated: AppNode, options?: { quiet?: boolean }) => {
       const nextNodes = (nodes as any).map((n: any) => (n.id === updated.id ? { ...n, data: updated.data } : n))
       setNodes(nextNodes as any)
+      setEditingNode(updated)
       setTimeout(() => persist(nextNodes as any, edges as any), 0)
-      showToast('Saved')
+      if (!options?.quiet) showToast('Saved')
     },
     [nodes, edges, persist, setNodes],
   )
@@ -207,6 +262,7 @@ export default function CanvasPage() {
   const onNodesDelete = useCallback(
     (deleted: any[]) => {
       const ids = new Set(deleted.map((n) => n.id))
+      setEditingNode((cur) => (cur && ids.has(cur.id) ? null : cur))
       const nextEdges = (edges as any).filter((e: any) => !ids.has(e.source) && !ids.has(e.target))
       setEdges(nextEdges as any)
       setCollapsedIds((prev) => {
@@ -264,43 +320,33 @@ export default function CanvasPage() {
   )
 
   const onNodeDragStop = useCallback(() => {
-    setTimeout(() => {
-      const current = (reactFlowInstance.current?.getNodes?.() as any[]) || (nodes as any)
-      persist(current as any, edges as any)
-    }, 0)
-  }, [nodes, edges, persist])
+    const moved = (reactFlowInstance.current?.getNodes?.() as { id: string; position?: { x: number; y: number } }[]) || []
+    const next = mergeDraggedNodes(nodes as { id: string; position: { x: number; y: number } }[], moved)
+    setNodes(next as any)
+    setTimeout(() => persist(next as any, edges as any), 0)
+  }, [nodes, edges, persist, setNodes])
 
-  const { displayNodes, displayEdges, hiddenCount } = useMemo(() => {
-    const adj = new Map<string, string[]>()
-    ;(edges as any[]).forEach((e: any) => {
-      if (!adj.has(e.source)) adj.set(e.source, [])
-      adj.get(e.source)!.push(e.target)
+  const { displayNodes, displayEdges, hiddenCount, visibleCount } = useMemo(() => {
+    const hidden = hiddenDescendantIds(edges as { source: string; target: string }[], collapsedIds)
+    const childCount = new Map<string, number>()
+    ;(edges as { source: string }[]).forEach((edge) => {
+      childCount.set(edge.source, (childCount.get(edge.source) || 0) + 1)
     })
-    const hidden = new Set<string>()
-    const queue: string[] = [...collapsedIds]
-    const visited = new Set<string>(queue)
-    while (queue.length) {
-      const cur = queue.shift()!
-      const childs = adj.get(cur) || []
-      for (const child of childs) {
-        if (!hidden.has(child)) hidden.add(child)
-        if (!visited.has(child)) {
-          visited.add(child)
-          queue.push(child)
-        }
-      }
-    }
-    const filteredNodes = (nodes as any[]).filter((n: any) => !hidden.has(n.id))
-    const filteredEdges = (edges as any[]).filter((e: any) => !hidden.has(e.source) && !hidden.has(e.target))
-    const decorated = filteredNodes.map((n: any) => {
-      const hasChildren = (adj.get(n.id)?.length || 0) > 0
-      const isCollapsed = collapsedIds.has(n.id)
-      return {
-        ...n,
-        data: { ...n.data, hasChildren, isCollapsed, onToggle: () => toggleCollapse(n.id) },
-      }
-    })
-    return { displayNodes: decorated, displayEdges: filteredEdges, hiddenCount: hidden.size }
+    const decorated = (nodes as any[]).map((node: any) => ({
+      ...node,
+      hidden: hidden.has(node.id),
+      data: {
+        ...node.data,
+        hasChildren: (childCount.get(node.id) || 0) > 0,
+        isCollapsed: collapsedIds.has(node.id),
+        onToggle: () => toggleCollapse(node.id),
+      },
+    }))
+    const decoratedEdges = (edges as any[]).map((edge: any) => ({
+      ...edge,
+      hidden: hidden.has(edge.source) || hidden.has(edge.target),
+    }))
+    return { displayNodes: decorated, displayEdges: decoratedEdges, hiddenCount: hidden.size, visibleCount: decorated.filter((node) => !node.hidden).length }
   }, [nodes, edges, collapsedIds, toggleCollapse])
 
   if (!loaded) {
@@ -308,12 +354,19 @@ export default function CanvasPage() {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', background: '#fff', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ height: '100vh', display: 'flex', background: '#f4f6f8', color: '#111827', fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
       <ProjectSidebar
         projects={projects}
         activeId={activeId}
         collapsed={sidebarCollapsed}
-        onSelect={setActiveId}
+        width={sidebarWidth}
+        resizing={sidebarResizing}
+        onWidth={setSidebarWidth}
+        onResizing={setSidebarResizing}
+        onSelect={(id) => {
+          setActiveId(id)
+          setEditingNode(null)
+        }}
         onCreate={() => {
           const p = createProject()
           setActiveId(p.id)
@@ -322,6 +375,7 @@ export default function CanvasPage() {
         onRename={renameProject}
         onDelete={(id) => {
           deleteProject(id)
+          setEditingNode(null)
           showToast('Project deleted')
         }}
         onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
@@ -344,29 +398,33 @@ export default function CanvasPage() {
         }}
       />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{ height: 44, borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px', background: '#fff' }}>
-          <div style={{ fontWeight: 600, fontSize: 14, color: '#1a202c' }}>{activeProject?.name || '—'}</div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+        <div style={{ height: 48, borderBottom: '1px solid #e6e8ee', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#fff' }}>
+          <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: '#111827' }}>{activeProject?.name || '—'}</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: '#718096' }}>
-              {displayNodes.length} visible · {hiddenCount > 0 ? `${hiddenCount} hidden · ` : ''}{edges.length} edges
+            <span style={{ fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#6b7280' }}>
+              {visibleCount} visible · {hiddenCount > 0 ? `${hiddenCount} hidden · ` : ''}{edges.length} edges
             </span>
-            <span title="Quad storage: chrome.local + IndexedDB + chrome.sync + localStorage, auto-recovery" style={{ fontSize: 10, color: '#38a169', border: '1px solid #c6f6d5', background: '#f0fff4', padding: '2px 6px', borderRadius: 99 }}>● Persisted</span>
+            <span title={writable ? 'Quad storage: chrome.local + IndexedDB + chrome.sync + localStorage, auto-recovery' : 'A saved copy could not be read, so nothing was overwritten'} style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: writable ? '#111827' : '#f97316', border: `1px solid ${writable ? '#e6e8ee' : '#fdba74'}`, background: '#fff', padding: '3px 7px', borderRadius: 999 }}>{writable ? 'Persisted' : 'Not saved'}</span>
             {hiddenCount > 0 && (
               <button
                 onClick={() => setCollapsedIds(new Set())}
-                style={{ padding: '4px 8px', background: '#edf2f7', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 11 }}
+                style={{ padding: '5px 8px', background: '#fff', border: '1px solid #e6e8ee', borderRadius: 8, cursor: 'pointer', fontSize: 11, color: '#111827' }}
               >
                 Expand all
               </button>
             )}
-            <button onClick={() => addNodeAt(100, 100)} style={{ padding: '6px 12px', background: '#3182ce', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
+            <button onClick={() => setSettingsOpen(true)} style={{ padding: '6px 12px', background: '#fff', color: '#111827', border: '1px solid #e6e8ee', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              Settings
+            </button>
+            <button onClick={() => addNodeAt(100, 100)} style={{ padding: '6px 12px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
               + Add Node
             </button>
           </div>
         </div>
 
-        <div ref={flowRef} style={{ flex: 1, position: 'relative' }} onContextMenu={onPaneContextMenu}>
+        <div style={{ flex: 1, display: 'flex', minWidth: 0, minHeight: 0 }}>
+        <div ref={flowRef} style={{ flex: 1, position: 'relative', minWidth: 0 }} onContextMenu={onPaneContextMenu}>
           <ReactFlow
             nodes={displayNodes as any}
             edges={displayEdges as any}
@@ -382,20 +440,27 @@ export default function CanvasPage() {
             onDelete={onDelete}
             onNodeDragStop={onNodeDragStop}
             nodeTypes={nodeTypes}
-            defaultEdgeOptions={{ markerEnd: arrowMarker, style: { stroke: '#3182ce', strokeWidth: 1.5 } }}
-            connectionLineStyle={{ stroke: '#3182ce', strokeWidth: 1.5 }}
+            defaultEdgeOptions={{ markerEnd: arrowMarker, style: edgeStyle }}
+            connectionLineStyle={edgeStyle}
             deleteKeyCode={['Backspace', 'Delete']}
             fitView
-            fitViewOptions={{ padding: 0.2 }}
+            fitViewOptions={fitViewOptions}
+            maxZoom={1.5}
             proOptions={{ hideAttribution: true }}
             onPaneClick={() => {
               setCtxMenu(null)
               setEdgeCtxMenu(null)
+              setEditingNode(null)
             }}
           >
-            <Background />
+            <Background variant={BackgroundVariant.Lines} gap={28} lineWidth={1} color="#e6e9ef" bgColor="#f4f6f8" />
             <Controls />
-            <MiniMap style={{ border: '1px solid #e2e8f0' }} />
+            <MiniMap
+              style={{ background: '#fff', border: '1px solid #e6e8ee', borderRadius: 12 }}
+              maskColor="rgba(17,24,39,0.05)"
+              nodeColor="#111827"
+              nodeStrokeWidth={2}
+            />
           </ReactFlow>
 
           {ctxMenu && (
@@ -407,9 +472,10 @@ export default function CanvasPage() {
                   left: ctxMenu.x,
                   top: ctxMenu.y,
                   background: '#fff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 8,
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                  border: '1px solid #e6e8ee',
+                  borderTop: '3px solid #111827',
+                  borderRadius: 12,
+                  boxShadow: '0 8px 18px rgba(17,24,39,0.08)',
                   overflow: 'hidden',
                   zIndex: 21,
                 }}
@@ -419,9 +485,18 @@ export default function CanvasPage() {
                     addNodeAt(ctxMenu.flowX, ctxMenu.flowY)
                     setCtxMenu(null)
                   }}
-                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, textAlign: 'left' }}
+                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#111827', textAlign: 'left' }}
                 >
                   + Add Node here
+                </button>
+                <button
+                  onClick={() => {
+                    addNodeAt(ctxMenu.flowX, ctxMenu.flowY, 'model')
+                    setCtxMenu(null)
+                  }}
+                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', borderTop: '1px solid #e6e8ee', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#111827', textAlign: 'left' }}
+                >
+                  + Add model node
                 </button>
               </div>
             </div>
@@ -436,22 +511,23 @@ export default function CanvasPage() {
                   left: edgeCtxMenu.x,
                   top: edgeCtxMenu.y,
                   background: '#fff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 8,
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                  border: '1px solid #e6e8ee',
+                  borderTop: '3px solid #f97316',
+                  borderRadius: 12,
+                  boxShadow: '0 8px 18px rgba(17,24,39,0.08)',
                   overflow: 'hidden',
                   zIndex: 21,
                 }}
               >
                 <button
                   onClick={() => deleteEdge(edgeCtxMenu.edgeId)}
-                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, textAlign: 'left', color: '#e53e3e' }}
+                  style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, textAlign: 'left', color: '#f97316' }}
                 >
                   Delete connection
                 </button>
                 <button
                   onClick={() => setEdgeCtxMenu(null)}
-                  style={{ display: 'block', width: '100%', padding: '8px 16px', border: 'none', borderTop: '1px solid #f0f0f0', background: '#fff', cursor: 'pointer', fontSize: 12, textAlign: 'left', color: '#718096' }}
+                  style={{ display: 'block', width: '100%', padding: '8px 16px', border: 'none', borderTop: '1px solid #e6e8ee', background: '#fff', cursor: 'pointer', fontSize: 12, textAlign: 'left', color: '#6b7280' }}
                 >
                   Cancel
                 </button>
@@ -459,16 +535,28 @@ export default function CanvasPage() {
             </div>
           )}
 
-          <div style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(255,255,255,0.92)', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#4a5568', pointerEvents: 'none' }}>
-            Right-click canvas → Add Node · Click edge / press Del to delete connection · Click ∓ to collapse · Click node to edit
+          <div style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(255,255,255,0.94)', border: '1px solid #e6e8ee', borderRadius: 10, padding: '6px 10px', fontSize: 11, color: '#6b7280', pointerEvents: 'none' }}>
+            Right-click canvas → Add Node or model node · Click a model node to ask in the details · Settings stores cloud keys and local models
           </div>
+        </div>
+        <NodeEditor key={editingNode?.id ?? 'none'} node={editingNode} profiles={profiles} history={parentHistory} width={detailsWidth} onWidth={setDetailsWidth} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} onOpenSettings={() => setSettingsOpen(true)} />
         </div>
       </div>
 
-      <NodeEditor node={editingNode} onSave={handleSaveNode} onClose={() => setEditingNode(null)} onDelete={handleDeleteNode} />
+      {settingsOpen && (
+        <SettingsPanel
+          profiles={profiles}
+          onClose={() => setSettingsOpen(false)}
+          onSave={(next) => {
+            setProfiles(next)
+            void saveLlmProfiles(next)
+            showToast('Settings saved')
+          }}
+        />
+      )}
 
       {toast && (
-        <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#1a202c', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, zIndex: 60 }}>
+        <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#111827', color: '#fff', padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 60 }}>
           {toast}
         </div>
       )}
