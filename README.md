@@ -77,6 +77,23 @@ npm run build    # tsc -b && vite build  → dist/
 npm run lint     # oxlint
 ```
 
+## MCP
+
+An MCP server in `mcp/` lets Cursor (or any MCP client) read and edit the same project graph the canvas uses: projects, nodes, progress, and edges.
+
+```bash
+npm run mcp:install
+npm run mcp:build
+```
+
+The project config is `.cursor/mcp.json`. Reload MCP servers in Cursor after the build. The server speaks stdio and also listens on `http://127.0.0.1:47821` so the extension can sync while it is running.
+
+Data file: `~/.local/share/ai-projects-manager/projects.json` (override with `AI_PROJECTS_DATA`).
+
+Tools: `list_projects`, `get_project`, `describe_project`, `create_project`, `rename_project`, `delete_project`, `add_node`, `update_node`, `delete_node`, `connect_nodes`, `disconnect_nodes`. Resource: `ai-projects://graph`.
+
+Rebuild and reload the extension after pulling this in, so the canvas page can reach the sync API. If the MCP server is not running, the canvas keeps using its existing storage.
+
 ## Load in Chrome
 
 Install the published extension from the [Chrome Web Store](https://chromewebstore.google.com/detail/canvas-diagram-tool/hpeakcadccgijjmimdnofpkgdfaibnap).
@@ -164,6 +181,8 @@ A task node omits `kind`. A model node sets `kind` to `"model"`. `model` on the 
 ## Permissions (MV3)
 
 `storage`, `unlimitedStorage`
+
+Host access for the optional MCP sync API: `http://127.0.0.1:47821/*`
 
 Optional host access, requested when a connection is saved or called: `https://*/*` and `http://*/*`
 

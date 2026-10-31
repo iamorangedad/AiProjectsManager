@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { idbGet, idbSet, requestPersistent } from './idb'
+import { mcpGet, mcpSet } from './mcpSync'
 import { storedNodeData, type AppNodeData, type NodeKind } from './nodeData'
 import { pickSnapshot, type Snapshot } from './pickSnapshot'
 
@@ -89,10 +90,10 @@ function lsGet(): Snapshot<Project> {
   }
 }
 
-function lsSet(projects: Project[]) {
+function lsSet(projects: Project[], ts: number) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(projects))
-    localStorage.setItem(META_KEY, String(Date.now()))
+    localStorage.setItem(META_KEY, String(ts))
   } catch {}
 }
 
@@ -114,17 +115,17 @@ function chromeGet(area: 'local' | 'sync'): Promise<Snapshot<Project>> {
   })
 }
 
-function chromeSetLocal(projects: Project[]) {
+function chromeSetLocal(projects: Project[], ts: number) {
   if (!hasChromeLocal()) return
   try {
-    chrome.storage.local.set({ [STORAGE_KEY]: projects, [META_KEY]: Date.now() })
+    chrome.storage.local.set({ [STORAGE_KEY]: projects, [META_KEY]: ts })
   } catch {}
 }
 
-function chromeSetSync(projects: Project[]) {
+function chromeSetSync(projects: Project[], ts: number) {
   if (!hasChromeSync()) return
   try {
-    const payload: Record<string, unknown> = { [STORAGE_KEY]: projects, [META_KEY]: Date.now() }
+    const payload: Record<string, unknown> = { [STORAGE_KEY]: projects, [META_KEY]: ts }
     const bytes = JSON.stringify(projects).length
     if (bytes > 80000) return
     chrome.storage.sync!.set(payload)
@@ -142,16 +143,27 @@ async function readIdb(): Promise<Snapshot<Project>> {
   }
 }
 
-async function loadBest(): Promise<{ projects: Project[] | null; readsOk: boolean }> {
-  const [local, sync, idb, ls] = await Promise.all([chromeGet('local'), chromeGet('sync'), readIdb(), Promise.resolve(lsGet())])
-  return pickSnapshot([local, sync, idb, ls])
+async function readMcp(): Promise<Snapshot<Project>> {
+  const remote = await mcpGet()
+  if (!remote.data) return { data: null, ts: 0, ok: true }
+  const data = asProjects(remote.data)
+  if (!data) return { data: null, ts: 0, ok: true }
+  return { data, ts: remote.ts, ok: true }
 }
 
-function persistAll(projects: Project[]) {
-  chromeSetLocal(projects)
-  chromeSetSync(projects)
-  lsSet(projects)
-  void idbSet(projects)
+async function loadBest(): Promise<{ projects: Project[] | null; readsOk: boolean; ts: number }> {
+  const [local, sync, idb, ls, mcp] = await Promise.all([chromeGet('local'), chromeGet('sync'), readIdb(), Promise.resolve(lsGet()), readMcp()])
+  const picked = pickSnapshot([local, sync, idb, ls, mcp])
+  const winner = [local, sync, idb, ls, mcp].find((candidate) => candidate.data === picked.projects)
+  return { projects: picked.projects, readsOk: picked.readsOk, ts: winner?.ts ?? 0 }
+}
+
+function persistAll(projects: Project[], ts: number, opts?: { skipMcp?: boolean }) {
+  chromeSetLocal(projects, ts)
+  chromeSetSync(projects, ts)
+  lsSet(projects, ts)
+  void idbSet(projects, ts)
+  if (!opts?.skipMcp) mcpSet(projects, ts)
 }
 
 function validateProjects(raw: unknown): Project[] | null {
@@ -166,8 +178,10 @@ export function useStorage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loaded, setLoaded] = useState(false)
   const [writable, setWritable] = useState(true)
+  const [externalRev, setExternalRev] = useState(0)
   const loadedRef = useRef(false)
   const canWrite = useRef(false)
+  const tsRef = useRef(0)
 
   useEffect(() => {
     void requestPersistent()
@@ -180,12 +194,13 @@ export function useStorage() {
         loadedSnapshot = await loadBest()
       }
       if (cancelled) return
-      const { projects: best, readsOk } = loadedSnapshot
+      const { projects: best, readsOk, ts } = loadedSnapshot
       canWrite.current = readsOk
       setWritable(readsOk)
+      tsRef.current = ts
       if (best && best.length > 0) {
         setProjects(best)
-        if (readsOk) persistAll(best)
+        if (readsOk) persistAll(best, ts)
       } else {
         const init: Project = { id: 'p1', name: 'Project 1', nodes: [], edges: [] }
         setProjects([init])
@@ -198,10 +213,33 @@ export function useStorage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!loaded) return
+    let cancelled = false
+    const timer = setInterval(() => {
+      void (async () => {
+        if (!canWrite.current) return
+        const remote = await mcpGet()
+        const data = remote.data ? asProjects(remote.data) : null
+        if (cancelled || !data || remote.ts <= tsRef.current) return
+        tsRef.current = remote.ts
+        setProjects(data)
+        setExternalRev((n) => n + 1)
+        persistAll(data, remote.ts, { skipMcp: true })
+      })()
+    }, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [loaded])
+
   const persist = useCallback((next: Project[]) => {
+    const ts = Date.now()
+    tsRef.current = ts
     setProjects(next)
     if (!canWrite.current) return
-    persistAll(next)
+    persistAll(next, ts)
   }, [])
 
   const addProject = useCallback(
@@ -269,5 +307,5 @@ export function useStorage() {
     [persist],
   )
 
-  return { projects, loaded, writable, setProjects: persist, addProject, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects }
+  return { projects, loaded, writable, externalRev, setProjects: persist, addProject, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects }
 }

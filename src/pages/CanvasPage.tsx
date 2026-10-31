@@ -18,7 +18,7 @@ const edgeStyle = { stroke: EDGE, strokeWidth: 1.25 }
 const fitViewOptions = { padding: 0.2, maxZoom: 1 }
 
 export default function CanvasPage() {
-  const { projects, loaded, writable, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
+  const { projects, loaded, writable, externalRev, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(() => clampPanelWidth(SIDEBAR_DEFAULT, SIDEBAR_MIN, window.innerWidth, SIDEBAR_MAX_FRACTION))
@@ -53,8 +53,12 @@ export default function CanvasPage() {
 
   useEffect(() => {
     if (!loaded) return
+    if (projects.length === 0) {
+      if (activeId) setActiveId(null)
+      return
+    }
     if (!activeId && projects.length > 0) setActiveId(projects[0].id)
-    if (activeId && !projects.find((p) => p.id === activeId) && projects.length > 0) setActiveId(projects[0].id)
+    if (activeId && !projects.find((p) => p.id === activeId)) setActiveId(projects[0].id)
   }, [loaded, projects, activeId])
 
   useEffect(() => {
@@ -86,6 +90,10 @@ export default function CanvasPage() {
   useEffect(() => {
     if (!loaded || !activeProject) {
       flowHydrated.current = false
+      if (loaded) {
+        setNodes([])
+        setEdges([])
+      }
       return
     }
     flowHydrated.current = false
@@ -107,7 +115,7 @@ export default function CanvasPage() {
     setNodes(flowNodes as any)
     setEdges(flowEdges as any)
     flowHydrated.current = true
-  }, [loaded, projectSyncKey])
+  }, [loaded, projectSyncKey, externalRev])
 
   const flowNodeKey = (nodes as any[]).map((n) => n.id).join(',')
   useEffect(() => {

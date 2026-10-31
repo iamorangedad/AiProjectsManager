@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ai-projects-manager": {
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp/dist/index.js"],
+      "env": {
+        "AI_PROJECTS_PORT": "47821"
+      }
+    }
+  }
+}
