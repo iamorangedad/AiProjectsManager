@@ -10,16 +10,16 @@ A Chrome extension (MV3) for planning work on a diagram canvas. Create projects,
 
 ## Features
 
-- **Toolbar** — Click the extension icon to open the canvas in a new tab
-- **Projects** — Left sidebar to create, rename, delete, and switch projects. The first run creates `Project 1`. Drag the list wider, up to a quarter of the window
+- **Toolbar** — The extension icon opens the canvas in a new tab
+- **Projects** — Create, rename, delete, and switch projects from the left sidebar. The first run creates `Project 1`. The list can be widened up to a quarter of the window
 - **Canvas** — Pan, zoom, minimap, and controls. The opening view stays at a normal size so the cards remain small
 - **Task nodes** — Label, note, URL, and a progress slider. An address that already starts with `http://` or `https://` is kept. A public host without a scheme gets `https://`. `localhost` and private addresses get `http://`
-- **Model nodes** — Pick a saved connection, optionally override the model, and ask in the details panel. The answer stays on the node
+- **Model nodes** — Ask through a saved connection. The model can be overridden, and the answer stays on the node
 - **Parent context** — When a model node asks, every upstream node's label, note, link, progress, and earlier answers are written into the system message. The request body itself is only `model` and `messages`
-- **Settings** — Save OpenAI-compatible connections. A cloud connection needs a base URL, model, and API key. A local connection can skip the key, and no `Authorization` header is sent. Keys stay in this browser and are left out of project export
-- **Edges** — Drag from the right handle to the left handle. Click an edge or press `Del` / `Backspace` to delete it
-- **Collapse** — `−` / `+` on a node with children hides or shows its descendants. The header shows visible, hidden, and edge counts, and `Expand all` brings them back
-- **Details panel** — Click a node to edit it on the right. Drag that panel wider, up to half the window. `Esc` closes it
+- **Settings** — OpenAI-compatible connections. Keys stay in this browser and are left out of project export
+- **Edges** — A connection runs from one node's right handle to another's left handle
+- **Collapse** — Hide or show all descendants of a node. The header shows how many nodes are visible, how many are hidden, and how many edges remain
+- **Details panel** — Editing opens on the right, up to half the window, and `Esc` closes it
 - **Persistence** — Four copies of the canvas, plus JSON export and import (see below)
 
 ## Tech Stack
@@ -113,14 +113,12 @@ The first time a model connection is saved or called, Chrome asks for permission
 
 - **Add a task:** `+ Add Node`, or right-click the canvas → *Add Node here*
 - **Add a model node:** right-click the canvas → *Add model node*, then set its type in the details
-- **Edit:** click a node. Change the label, note, URL, or progress, then *Save*
-- **Ask:** on a model node, choose a connection and send a question. Upstream nodes are included as context
-- **Connect:** drag from the right handle to the left handle of another node
-- **Delete an edge:** click it → *Delete connection*, or select it and press `Del`
+- **Edit:** click a node, change the fields, then *Save*
+- **Ask:** on a model node, choose a connection and send a question
+- **Delete an edge:** click it → *Delete connection*, or select it and press `Del` / `Backspace`
 - **Delete a node:** *Delete* in the details, or select it and press `Del`. Connected edges are removed
-- **Collapse:** `−` on a parent node. `+` expands it. `Expand all` in the header clears every collapse
-- **Resize:** drag the project list to the right, up to a quarter of the window, or drag the details to the left, up to half the window
-- **Switch projects:** click a name in the sidebar
+- **Collapse:** `−` hides descendants, `+` shows them, and `Expand all` in the header clears every collapse
+- **Resize:** drag the project list from the right, or the details panel from the left
 - **Backup:** `⤓ Export` downloads `ai-projects-YYYY-MM-DD.json`. `⤒ Import` restores it
 
 ### Model connections
