@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { idbGet, idbSet, requestPersistent } from './idb'
+import { mcpGet, mcpSet } from './mcpSync'
 
 const STORAGE_KEY = 'projects'
 const META_KEY = 'projects_meta_ts'
@@ -57,10 +58,10 @@ function lsGet(): { data: Project[] | null; ts: number } {
   }
 }
 
-function lsSet(projects: Project[]) {
+function lsSet(projects: Project[], ts: number) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(projects))
-    localStorage.setItem(META_KEY, String(Date.now()))
+    localStorage.setItem(META_KEY, String(ts))
   } catch {}
 }
 
@@ -80,10 +81,10 @@ function chromeGetLocal(): Promise<{ data: Project[] | null; ts: number }> {
   })
 }
 
-function chromeSetLocal(projects: Project[]) {
+function chromeSetLocal(projects: Project[], ts: number) {
   if (!hasChromeLocal()) return
   try {
-    chrome.storage.local.set({ [STORAGE_KEY]: projects, [META_KEY]: Date.now() })
+    chrome.storage.local.set({ [STORAGE_KEY]: projects, [META_KEY]: ts })
   } catch {}
 }
 
@@ -103,17 +104,17 @@ function chromeGetSync(): Promise<{ data: Project[] | null; ts: number }> {
   })
 }
 
-function chromeSetSync(projects: Project[]) {
+function chromeSetSync(projects: Project[], ts: number) {
   if (!hasChromeSync()) return
   try {
-    const payload: Record<string, unknown> = { [STORAGE_KEY]: projects, [META_KEY]: Date.now() }
+    const payload: Record<string, unknown> = { [STORAGE_KEY]: projects, [META_KEY]: ts }
     const bytes = JSON.stringify(projects).length
     if (bytes > 80000) return
     chrome.storage.sync!.set(payload)
   } catch {}
 }
 
-function pickBest(candidates: Array<{ data: Project[] | null; ts: number; src: string }>): Project[] | null {
+function pickBest(candidates: Array<{ data: Project[] | null; ts: number; src: string }>): { data: Project[]; ts: number } | null {
   const valid = candidates.filter((c) => c.data && Array.isArray(c.data) && c.data.length > 0) as Array<{ data: Project[]; ts: number; src: string }>
   if (valid.length === 0) return null
   valid.sort((a, b) => {
@@ -122,25 +123,32 @@ function pickBest(candidates: Array<{ data: Project[] | null; ts: number; src: s
     const bl = b.data.reduce((s, p) => s + p.nodes.length + p.edges.length, 0)
     return bl - al
   })
-  return valid[0].data
+  return { data: valid[0].data, ts: valid[0].ts }
 }
 
-async function loadBest(): Promise<Project[] | null> {
-  const [local, sync, idb, ls] = await Promise.all([chromeGetLocal(), chromeGetSync(), idbGet().then((r) => (r ? { data: r.data as Project[], ts: r.ts } : { data: null, ts: 0 })), Promise.resolve(lsGet())])
-  const best = pickBest([
+async function loadBest(): Promise<{ data: Project[]; ts: number } | null> {
+  const [local, sync, idb, ls, mcp] = await Promise.all([
+    chromeGetLocal(),
+    chromeGetSync(),
+    idbGet().then((r) => (r ? { data: r.data as Project[], ts: r.ts } : { data: null, ts: 0 })),
+    Promise.resolve(lsGet()),
+    mcpGet(),
+  ])
+  return pickBest([
     { data: local.data, ts: local.ts, src: 'local' },
     { data: sync.data, ts: sync.ts, src: 'sync' },
     { data: idb.data as Project[] | null, ts: idb.ts, src: 'idb' },
     { data: ls.data, ts: ls.ts, src: 'ls' },
+    { data: mcp.data, ts: mcp.ts, src: 'mcp' },
   ])
-  return best
 }
 
-function persistAll(projects: Project[]) {
-  chromeSetLocal(projects)
-  chromeSetSync(projects)
-  lsSet(projects)
-  void idbSet(projects)
+function persistAll(projects: Project[], ts: number, opts?: { skipMcp?: boolean }) {
+  chromeSetLocal(projects, ts)
+  chromeSetSync(projects, ts)
+  lsSet(projects, ts)
+  void idbSet(projects, ts)
+  if (!opts?.skipMcp) mcpSet(projects, ts)
 }
 
 function validateProjects(raw: unknown): Project[] | null {
@@ -154,7 +162,9 @@ function validateProjects(raw: unknown): Project[] | null {
 export function useStorage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [externalRev, setExternalRev] = useState(0)
   const loadedRef = useRef(false)
+  const tsRef = useRef(0)
 
   useEffect(() => {
     void requestPersistent()
@@ -162,13 +172,16 @@ export function useStorage() {
     void (async () => {
       const best = await loadBest()
       if (cancelled) return
-      if (best && best.length > 0) {
-        setProjects(best)
-        persistAll(best)
+      if (best && best.data.length > 0) {
+        tsRef.current = best.ts
+        setProjects(best.data)
+        persistAll(best.data, best.ts)
       } else {
         const init: Project = { id: 'p1', name: 'Project 1', nodes: [], edges: [] }
+        const ts = Date.now()
+        tsRef.current = ts
         setProjects([init])
-        persistAll([init])
+        persistAll([init], ts)
       }
       loadedRef.current = true
       setLoaded(true)
@@ -178,9 +191,30 @@ export function useStorage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!loaded) return
+    let cancelled = false
+    const timer = setInterval(() => {
+      void (async () => {
+        const remote = await mcpGet()
+        if (cancelled || !remote.data || remote.ts <= tsRef.current) return
+        tsRef.current = remote.ts
+        setProjects(remote.data)
+        setExternalRev((n) => n + 1)
+        persistAll(remote.data, remote.ts, { skipMcp: true })
+      })()
+    }, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [loaded])
+
   const persist = useCallback((next: Project[]) => {
+    const ts = Date.now()
+    tsRef.current = ts
     setProjects(next)
-    persistAll(next)
+    persistAll(next, ts)
   }, [])
 
   const addProject = useCallback(
@@ -248,5 +282,5 @@ export function useStorage() {
     [persist],
   )
 
-  return { projects, loaded, setProjects: persist, addProject, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects }
+  return { projects, loaded, externalRev, setProjects: persist, addProject, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects }
 }
