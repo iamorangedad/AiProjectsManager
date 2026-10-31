@@ -10,7 +10,7 @@ const nodeTypes: NodeTypes = { custom: CustomNode }
 const arrowMarker = { type: MarkerType.ArrowClosed, width: 18, height: 18, color: '#3182ce' } as const
 
 export default function CanvasPage() {
-  const { projects, loaded, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
+  const { projects, loaded, externalRev, createProject, deleteProject, updateProject, renameProject, exportProjects, importProjects } = useStorage()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [nodes, setNodes, onNodesChange] = useNodesState([] as any)
@@ -24,11 +24,19 @@ export default function CanvasPage() {
   const reactFlowInstance = useRef<any>(null)
 
   const activeProject = useMemo(() => projects.find((p) => p.id === activeId) || null, [projects, activeId])
+  const projectsRef = useRef(projects)
+  useEffect(() => {
+    projectsRef.current = projects
+  }, [projects])
 
   useEffect(() => {
     if (!loaded) return
+    if (projects.length === 0) {
+      if (activeId) setActiveId(null)
+      return
+    }
     if (!activeId && projects.length > 0) setActiveId(projects[0].id)
-    if (activeId && !projects.find((p) => p.id === activeId) && projects.length > 0) setActiveId(projects[0].id)
+    if (activeId && !projects.find((p) => p.id === activeId)) setActiveId(projects[0].id)
   }, [loaded, projects, activeId])
 
   useEffect(() => {
@@ -45,14 +53,20 @@ export default function CanvasPage() {
   }, [])
 
   useEffect(() => {
-    if (!activeProject) return
-    const flowNodes = activeProject.nodes.map((n) => ({
+    if (!activeId) return
+    const project = projectsRef.current.find((p) => p.id === activeId)
+    if (!project) {
+      setNodes([])
+      setEdges([])
+      return
+    }
+    const flowNodes = project.nodes.map((n) => ({
       id: n.id,
       type: 'custom',
       position: n.position,
       data: n.data as any,
     }))
-    const flowEdges = activeProject.edges.map((e) => ({
+    const flowEdges = project.edges.map((e) => ({
       id: e.id,
       source: e.source,
       target: e.target,
@@ -63,7 +77,7 @@ export default function CanvasPage() {
     }))
     setNodes(flowNodes as any)
     setEdges(flowEdges as any)
-  }, [activeProject?.id])
+  }, [activeId, externalRev, setNodes, setEdges])
 
   const persist = useCallback(
     (nextNodes: any[], nextEdges: any[]) => {
