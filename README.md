@@ -1,5 +1,7 @@
 # Canvas Diagram Tool — AI Projects Manager
 
+[中文文档](README.zh-CN.md)
+
 A Chrome extension (MV3) for planning work on a diagram canvas. Create projects, connect task nodes, and ask a model from a node on the right. The current release is **v1.1.0**.
 
 **[Install Canvas Diagram Tool from the Chrome Web Store](https://chromewebstore.google.com/detail/canvas-diagram-tool/hpeakcadccgijjmimdnofpkgdfaibnap)**
