@@ -52,14 +52,14 @@ export async function idbGet(): Promise<{ data: unknown; ts: number } | null> {
   }
 }
 
-export async function idbSet(data: unknown): Promise<void> {
+export async function idbSet(data: unknown, ts = Date.now()): Promise<void> {
   try {
     const db = await openDB()
     await new Promise<void>((resolve) => {
       const tx = db.transaction(STORE, 'readwrite')
       const store = tx.objectStore(STORE)
       store.put(data, KEY)
-      store.put(Date.now(), META_KEY)
+      store.put(ts, META_KEY)
       tx.oncomplete = () => {
         db.close()
         resolve()
