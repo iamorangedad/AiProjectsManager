@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "mcp:install": "npm install --prefix mcp --registry https://registry.npmjs.org",
+    "mcp:build": "npm --prefix mcp run build",
+    "mcp:start": "npm --prefix mcp start"
   },
   "dependencies": {
     "@xyflow/react": "^12.11.6",
