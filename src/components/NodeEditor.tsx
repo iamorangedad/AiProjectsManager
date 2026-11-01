@@ -86,6 +86,7 @@ export default function NodeEditor({
   const scroller = useRef<HTMLElement>(null)
   const askRef = useRef<HTMLTextAreaElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
+  const urlCancelRef = useRef(false)
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -115,13 +116,16 @@ export default function NodeEditor({
   const selectedProfileId = profiles.some((item) => item.id === profileId) ? profileId : (profiles[0]?.id ?? '')
   const profile = profiles.find((item) => item.id === selectedProfileId) ?? null
 
-  const commitUrlDraft = () => {
-    setUrl(normalizeNodeUrl(urlDraft) ?? '')
+  const finishUrlEdit = (commit: boolean) => {
+    if (commit) {
+      const next = normalizeNodeUrl(urlDraft)
+      if (next) setUrl(next)
+    }
     setUrlEditing(false)
   }
 
   const buildSaved = (next?: { messages?: ChatMessage[]; percentage?: number; history?: NodeHistoryEntry[] }): AppNode => {
-    const pendingUrl = urlEditing ? (normalizeNodeUrl(urlDraft) ?? '') : url
+    const pendingUrl = urlEditing ? (normalizeNodeUrl(urlDraft) ?? url) : url
     const data = storedNodeData({
       label: label.trim() || 'Unnamed',
       note,
@@ -283,26 +287,27 @@ export default function NodeEditor({
                     className="tech-field"
                     value={urlDraft}
                     onChange={(e) => setUrlDraft(e.target.value)}
+                    onBlur={() => {
+                      if (urlCancelRef.current) {
+                        urlCancelRef.current = false
+                        return
+                      }
+                      finishUrlEdit(true)
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
-                        commitUrlDraft()
+                        finishUrlEdit(true)
                       } else if (e.key === 'Escape') {
+                        e.preventDefault()
                         e.stopPropagation()
-                        setUrlEditing(false)
+                        urlCancelRef.current = true
+                        finishUrlEdit(false)
                       }
                     }}
                     placeholder="http://localhost:3000"
                     style={{ ...fieldStyle, wordBreak: 'break-all' }}
                   />
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" onClick={commitUrlDraft} style={{ padding: '8px 12px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
-                      {openUrl ? 'Done' : 'Add'}
-                    </button>
-                    <button type="button" onClick={() => setUrlEditing(false)} style={{ padding: '8px 12px', background: '#fff', color: '#111827', border: '1px solid #e6e8ee', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
-                      Cancel
-                    </button>
-                  </div>
                 </div>
               )}
               {openUrl && !urlEditing && (
