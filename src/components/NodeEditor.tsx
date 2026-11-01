@@ -31,6 +31,24 @@ const labelStyle: CSSProperties = {
   marginBottom: 6,
 }
 
+const iconButtonStyle: CSSProperties = {
+  width: 28,
+  height: 28,
+  flexShrink: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 8,
+  border: '1px solid #e6e8ee',
+  background: '#fff',
+  color: '#111827',
+  cursor: 'pointer',
+  fontSize: 16,
+  fontWeight: 600,
+  lineHeight: 1,
+  padding: 0,
+}
+
 export default function NodeEditor({
   node,
   profiles,
@@ -55,6 +73,8 @@ export default function NodeEditor({
   const [label, setLabel] = useState(node?.data.label ?? '')
   const [note, setNote] = useState(node?.data.note ?? '')
   const [url, setUrl] = useState(node?.data.url ?? '')
+  const [urlDraft, setUrlDraft] = useState('')
+  const [urlEditing, setUrlEditing] = useState(false)
   const [pct, setPct] = useState(node?.data.percentage ?? 0)
   const [kind, setKind] = useState<NodeKind>(node?.data.kind === 'model' ? 'model' : 'task')
   const [profileId, setProfileId] = useState(node?.data.profileId ?? profiles[0]?.id ?? '')
@@ -65,6 +85,7 @@ export default function NodeEditor({
   const [runError, setRunError] = useState<string | null>(null)
   const scroller = useRef<HTMLElement>(null)
   const askRef = useRef<HTMLTextAreaElement>(null)
+  const urlInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -79,6 +100,10 @@ export default function NodeEditor({
   }, [kind])
 
   useEffect(() => {
+    if (urlEditing) urlInputRef.current?.focus()
+  }, [urlEditing])
+
+  useEffect(() => {
     const el = scroller.current
     if (!el) return
     el.scrollTop = el.scrollHeight
@@ -90,11 +115,17 @@ export default function NodeEditor({
   const selectedProfileId = profiles.some((item) => item.id === profileId) ? profileId : (profiles[0]?.id ?? '')
   const profile = profiles.find((item) => item.id === selectedProfileId) ?? null
 
+  const commitUrlDraft = () => {
+    setUrl(normalizeNodeUrl(urlDraft) ?? '')
+    setUrlEditing(false)
+  }
+
   const buildSaved = (next?: { messages?: ChatMessage[]; percentage?: number; history?: NodeHistoryEntry[] }): AppNode => {
+    const pendingUrl = urlEditing ? (normalizeNodeUrl(urlDraft) ?? '') : url
     const data = storedNodeData({
       label: label.trim() || 'Unnamed',
       note,
-      url,
+      url: pendingUrl,
       percentage: next?.percentage ?? pct,
       kind,
       profileId: selectedProfileId,
@@ -104,6 +135,7 @@ export default function NodeEditor({
     })
     const nextUrl = data.url ?? ''
     if (nextUrl !== url) setUrl(nextUrl)
+    if (urlEditing) setUrlEditing(false)
     return { ...node, data }
   }
 
@@ -227,19 +259,76 @@ export default function NodeEditor({
         {kind === 'task' && (
           <>
             <div>
-              <label style={{ display: 'block' }}>
-                <div style={labelStyle}>URL</div>
-                <textarea className="tech-field" value={url} rows={5} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3000" style={{ ...fieldStyle, wordBreak: 'break-all' }} />
-              </label>
-              {openUrl && (
-                <a
-                  href={openUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ display: 'inline-block', marginTop: 6, fontSize: 13, color: '#2563eb', lineHeight: 1.45, wordBreak: 'break-all' }}
-                >
-                  {openUrl}
-                </a>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ ...labelStyle, marginBottom: 0 }}>URL</div>
+                {!openUrl && !urlEditing && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUrlDraft('')
+                      setUrlEditing(true)
+                    }}
+                    aria-label="Add URL"
+                    title="Add URL"
+                    style={iconButtonStyle}
+                  >
+                    +
+                  </button>
+                )}
+              </div>
+              {urlEditing && (
+                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <input
+                    ref={urlInputRef}
+                    className="tech-field"
+                    value={urlDraft}
+                    onChange={(e) => setUrlDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        commitUrlDraft()
+                      } else if (e.key === 'Escape') {
+                        e.stopPropagation()
+                        setUrlEditing(false)
+                      }
+                    }}
+                    placeholder="http://localhost:3000"
+                    style={{ ...fieldStyle, wordBreak: 'break-all' }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={commitUrlDraft} style={{ padding: '8px 12px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
+                      {openUrl ? 'Done' : 'Add'}
+                    </button>
+                    <button type="button" onClick={() => setUrlEditing(false)} style={{ padding: '8px 12px', background: '#fff', color: '#111827', border: '1px solid #e6e8ee', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {openUrl && !urlEditing && (
+                <div style={{ marginTop: 6, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <a
+                    href={openUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ flex: 1, minWidth: 0, paddingTop: 4, fontSize: 13, color: '#2563eb', lineHeight: 1.45, wordBreak: 'break-all' }}
+                  >
+                    {openUrl}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUrlDraft(openUrl)
+                      setUrlEditing(true)
+                    }}
+                    style={{ flexShrink: 0, height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid #e6e8ee', background: '#fff', color: '#111827', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                  >
+                    Edit
+                  </button>
+                  <button type="button" onClick={() => setUrl('')} aria-label="Remove URL" title="Remove URL" style={iconButtonStyle}>
+                    ×
+                  </button>
+                </div>
               )}
             </div>
             <label style={{ display: 'block' }}>
