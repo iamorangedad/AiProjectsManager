@@ -3,7 +3,7 @@ import { DETAILS_MAX_FRACTION, DETAILS_MIN } from '../canvas/panelWidth'
 import { callModel } from '../llm/callModel'
 import PanelResizeHandle from './PanelResizeHandle'
 import { requestModelOrigin, type LlmProfile } from '../storage/llmSettings'
-import type { ChatMessage, NodeHistoryEntry } from '../storage/nodeData'
+import { normalizeNodeUrl, type ChatMessage, type NodeHistoryEntry } from '../storage/nodeData'
 import { storedNodeData, type AppNode, type NodeKind } from '../storage/useStorage'
 
 const fieldStyle: CSSProperties = {
@@ -86,6 +86,7 @@ export default function NodeEditor({
 
   if (!node) return null
 
+  const openUrl = normalizeNodeUrl(url)
   const selectedProfileId = profiles.some((item) => item.id === profileId) ? profileId : (profiles[0]?.id ?? '')
   const profile = profiles.find((item) => item.id === selectedProfileId) ?? null
 
@@ -225,10 +226,22 @@ export default function NodeEditor({
 
         {kind === 'task' && (
           <>
-            <label style={{ display: 'block' }}>
-              <div style={labelStyle}>URL</div>
-              <textarea className="tech-field" value={url} rows={5} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3000" style={{ ...fieldStyle, wordBreak: 'break-all' }} />
-            </label>
+            <div>
+              <label style={{ display: 'block' }}>
+                <div style={labelStyle}>URL</div>
+                <textarea className="tech-field" value={url} rows={5} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3000" style={{ ...fieldStyle, wordBreak: 'break-all' }} />
+              </label>
+              {openUrl && (
+                <a
+                  href={openUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'inline-block', marginTop: 6, fontSize: 13, color: '#2563eb', lineHeight: 1.45, wordBreak: 'break-all' }}
+                >
+                  {openUrl}
+                </a>
+              )}
+            </div>
             <label style={{ display: 'block' }}>
               <div style={labelStyle}>Progress: {pct}%</div>
               <input type="range" min={0} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} style={{ width: '100%', accentColor: pct >= 100 ? '#16a34a' : '#2563eb' }} />
@@ -251,7 +264,18 @@ export default function NodeEditor({
                   ))}
                 </select>
               )}
-              {profile && <div style={{ marginTop: 6, fontSize: 12, color: '#6b7280', lineHeight: 1.45, wordBreak: 'break-all' }}>{profile.apiKey ? profile.baseUrl : `${profile.baseUrl} · no API key`}</div>}
+              {profile && (
+                <div style={{ marginTop: 6, fontSize: 12, color: '#6b7280', lineHeight: 1.45, wordBreak: 'break-all' }}>
+                  {/^https?:\/\//i.test(profile.baseUrl) ? (
+                    <a href={profile.baseUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+                      {profile.baseUrl}
+                    </a>
+                  ) : (
+                    profile.baseUrl
+                  )}
+                  {profile.apiKey ? '' : ' · no API key'}
+                </div>
+              )}
             </label>
             <label style={{ display: 'block' }}>
               <div style={labelStyle}>Model override</div>
