@@ -220,14 +220,14 @@ export default function NodeEditor({
 
         <label style={{ display: 'block' }}>
           <div style={labelStyle}>Note</div>
-          <textarea className="tech-field" value={note} rows={4} onChange={(e) => setNote(e.target.value)} placeholder="Add a note" style={{ ...fieldStyle, wordBreak: 'break-word' }} />
+          <textarea className="tech-field" value={note} rows={8} onChange={(e) => setNote(e.target.value)} placeholder="Add a note" style={{ ...fieldStyle, wordBreak: 'break-word' }} />
         </label>
 
         {kind === 'task' && (
           <>
             <label style={{ display: 'block' }}>
               <div style={labelStyle}>URL</div>
-              <textarea className="tech-field" value={url} rows={5} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3000" style={{ ...fieldStyle, wordBreak: 'break-all' }} />
+              <textarea className="tech-field" value={url} rows={2} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3000" style={{ ...fieldStyle, wordBreak: 'break-all' }} />
             </label>
             <label style={{ display: 'block' }}>
               <div style={labelStyle}>Progress: {pct}%</div>
