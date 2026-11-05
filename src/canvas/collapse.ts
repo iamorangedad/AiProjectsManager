@@ -1,5 +1,18 @@
 export type CollapseEdge = { source: string; target: string }
 
+export function normalizeCollapsedIds(value: unknown, nodeIds: Iterable<string>): string[] {
+  if (!Array.isArray(value)) return []
+  const known = new Set(nodeIds)
+  const seen = new Set<string>()
+  const ids: string[] = []
+  for (const id of value) {
+    if (typeof id !== 'string' || !known.has(id) || seen.has(id)) continue
+    seen.add(id)
+    ids.push(id)
+  }
+  return ids
+}
+
 export function hiddenDescendantIds(edges: CollapseEdge[], collapsedIds: Iterable<string>): Set<string> {
   const children = new Map<string, string[]>()
   for (const edge of edges) {

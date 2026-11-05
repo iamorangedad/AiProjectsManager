@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { idbGet, idbSet, requestPersistent } from './idb'
 import { mcpGet, mcpSet } from './mcpSync'
+import { normalizeCollapsedIds } from '../canvas/collapse'
 import { storedNodeData, type AppNodeData, type NodeKind } from './nodeData'
 import { pickSnapshot, type Snapshot } from './pickSnapshot'
 
@@ -50,6 +51,7 @@ export interface Project {
   name: string
   nodes: AppNode[]
   edges: AppEdge[]
+  collapsedIds?: string[]
 }
 
 function asProjects(value: unknown): Project[] | null {
@@ -59,21 +61,26 @@ function asProjects(value: unknown): Project[] | null {
     if (!item || typeof item !== 'object') return null
     const project = item as Project
     if (typeof project.id !== 'string' || typeof project.name !== 'string' || !Array.isArray(project.nodes) || !Array.isArray(project.edges)) return null
-    projects.push({
-      ...project,
-      nodes: project.nodes.flatMap((node) => {
-        if (!node || typeof node.id !== 'string') return []
-        const position = node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number' ? node.position : { x: 0, y: 0 }
-        const raw = node.data && typeof node.data === 'object' ? node.data : undefined
-        return [{
-          id: node.id,
-          type: typeof node.type === 'string' ? node.type : 'custom',
-          position,
-          data: storedNodeData(raw),
-        }]
-      }),
-      edges: project.edges.filter((edge) => edge && typeof edge.id === 'string' && typeof edge.source === 'string' && typeof edge.target === 'string'),
+    const nodes = project.nodes.flatMap((node) => {
+      if (!node || typeof node.id !== 'string') return []
+      const position = node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number' ? node.position : { x: 0, y: 0 }
+      const raw = node.data && typeof node.data === 'object' ? node.data : undefined
+      return [{
+        id: node.id,
+        type: typeof node.type === 'string' ? node.type : 'custom',
+        position,
+        data: storedNodeData(raw),
+      }]
     })
+    const collapsedIds = normalizeCollapsedIds(project.collapsedIds, nodes.map((node) => node.id))
+    const stored: Project = {
+      ...project,
+      nodes,
+      edges: project.edges.filter((edge) => edge && typeof edge.id === 'string' && typeof edge.source === 'string' && typeof edge.target === 'string'),
+    }
+    if (collapsedIds.length) stored.collapsedIds = collapsedIds
+    else delete stored.collapsedIds
+    projects.push(stored)
   }
   return projects
 }

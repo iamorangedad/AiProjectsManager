@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { hiddenDescendantIds, mergeDraggedNodes } from '../src/canvas/collapse.ts'
+import { hiddenDescendantIds, mergeDraggedNodes, normalizeCollapsedIds } from '../src/canvas/collapse.ts'
 
 const edges = [
   { source: 'A', target: 'A1' },
@@ -49,5 +49,9 @@ assert.deepEqual(merged.find((node) => node.id === 'A1')?.position, { x: 320, y:
 assert.deepEqual(merged.find((node) => node.id === 'A2')?.position, { x: 320, y: 140 })
 assert.deepEqual(merged.find((node) => node.id === 'B1')?.position, { x: 162, y: 108 })
 assert.equal(merged.find((node) => node.id === 'A'), nodes[0])
+
+assert.deepEqual(normalizeCollapsedIds(['A', 'A', 'missing', 1, 'B'], ['A', 'B']), ['A', 'B'])
+assert.deepEqual(normalizeCollapsedIds(undefined, ['A']), [])
+assert.deepEqual(normalizeCollapsedIds('A', ['A']), [])
 
 console.log('collapse ok')
