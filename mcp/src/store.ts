@@ -29,6 +29,7 @@ export interface Project {
   name: string;
   nodes: AppNode[];
   edges: AppEdge[];
+  collapsedIds?: string[];
 }
 
 export interface StoreFile {
@@ -57,6 +58,18 @@ export function withLock<T>(fn: () => T): Promise<T> {
 
 function emptyStore(): StoreFile {
   return { updatedAt: 0, projects: [] };
+}
+
+function collapsedNodeIds(value: unknown, nodeIds: Set<string>): string[] {
+  if (!Array.isArray(value)) return [];
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const id of value) {
+    if (typeof id !== "string" || !nodeIds.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -105,7 +118,8 @@ export function validateProjects(raw: unknown): Project[] | null {
         targetHandle: edge.targetHandle as string | null | undefined,
       });
     }
-    projects.push({ id: project.id, name: project.name, nodes, edges });
+    const collapsedIds = collapsedNodeIds(project.collapsedIds, new Set(nodes.map((node) => node.id)));
+    projects.push({ id: project.id, name: project.name, nodes, edges, ...(collapsedIds.length ? { collapsedIds } : {}) });
   }
   return projects;
 }

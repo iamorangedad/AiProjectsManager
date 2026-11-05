@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, useNodesState, useEdgesState, addEdge, MarkerType, type Connection, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { hiddenDescendantIds, mergeDraggedNodes } from '../canvas/collapse'
+import { hiddenDescendantIds, mergeDraggedNodes, normalizeCollapsedIds } from '../canvas/collapse'
 import { clampPanelWidth, DETAILS_DEFAULT, DETAILS_MAX_FRACTION, DETAILS_MIN, SIDEBAR_DEFAULT, SIDEBAR_MAX_FRACTION, SIDEBAR_MIN } from '../canvas/panelWidth'
 import { collectParentHistory } from '../storage/parentHistory'
 import { storedNodeData, useStorage, type AppNode, type NodeKind, type Project } from '../storage/useStorage'
@@ -33,12 +33,20 @@ export default function CanvasPage() {
   const [profiles, setProfiles] = useState<LlmProfile[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
+  const collapsedRef = useRef<Set<string>>(new Set())
+  const [seenCollapseSource, setSeenCollapseSource] = useState('')
   const flowRef = useRef<HTMLDivElement>(null)
   const reactFlowInstance = useRef<any>(null)
   const flowHydrated = useRef(false)
   const fittedProjectId = useRef<string | null>(null)
 
   const activeProject = useMemo(() => projects.find((p) => p.id === activeId) || null, [projects, activeId])
+  const collapseSource = activeId ? `${activeId}:${(activeProject?.collapsedIds ?? []).join('\0')}` : ''
+  if (seenCollapseSource !== collapseSource) {
+    const ids = new Set(normalizeCollapsedIds(activeProject?.collapsedIds, (activeProject?.nodes ?? []).map((node) => node.id)))
+    setSeenCollapseSource(collapseSource)
+    setCollapsedIds(ids)
+  }
   const parentHistory = useMemo(
     () =>
       editingNode
@@ -52,6 +60,10 @@ export default function CanvasPage() {
   const expectedNodeIds = activeProject ? activeProject.nodes.map((n) => n.id).join(',') : ''
 
   useEffect(() => {
+    collapsedRef.current = collapsedIds
+  }, [collapsedIds])
+
+  useEffect(() => {
     if (!loaded) return
     if (projects.length === 0) {
       if (activeId) setActiveId(null)
@@ -60,10 +72,6 @@ export default function CanvasPage() {
     if (!activeId && projects.length > 0) setActiveId(projects[0].id)
     if (activeId && !projects.find((p) => p.id === activeId)) setActiveId(projects[0].id)
   }, [loaded, projects, activeId])
-
-  useEffect(() => {
-    setCollapsedIds(new Set())
-  }, [activeId])
 
   useEffect(() => {
     const onResize = () => {
@@ -78,14 +86,23 @@ export default function CanvasPage() {
     void loadLlmProfiles().then(setProfiles)
   }, [])
 
-  const toggleCollapse = useCallback((nodeId: string) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(nodeId)) next.delete(nodeId)
-      else next.add(nodeId)
-      return next
-    })
+  const projectWithCollapse = useCallback((project: Project, nodeIds: string[]): Project => {
+    const ids = normalizeCollapsedIds([...collapsedRef.current], nodeIds)
+    const next = { ...project }
+    if (ids.length) next.collapsedIds = ids
+    else delete next.collapsedIds
+    return next
   }, [])
+
+  const toggleCollapse = useCallback((nodeId: string) => {
+    const next = new Set(collapsedRef.current)
+    if (next.has(nodeId)) next.delete(nodeId)
+    else next.add(nodeId)
+    collapsedRef.current = next
+    setCollapsedIds(next)
+    if (!activeProject) return
+    updateProject(projectWithCollapse(activeProject, activeProject.nodes.map((node) => node.id)))
+  }, [activeProject, projectWithCollapse, updateProject])
 
   useEffect(() => {
     if (!loaded || !activeProject) {
@@ -150,10 +167,9 @@ export default function CanvasPage() {
         sourceHandle: e.sourceHandle,
         targetHandle: e.targetHandle,
       }))
-      const updated: Project = { ...activeProject, nodes: toAppNodes, edges: toAppEdges }
-      updateProject(updated)
+      updateProject(projectWithCollapse({ ...activeProject, nodes: toAppNodes, edges: toAppEdges }, toAppNodes.map((node) => node.id)))
     },
-    [activeId, activeProject, updateProject],
+    [activeId, activeProject, projectWithCollapse, updateProject],
   )
 
   const showToast = (msg: string) => {
@@ -248,11 +264,10 @@ export default function CanvasPage() {
       const nextEdges = (edges as any).filter((e: any) => e.source !== id && e.target !== id)
       setNodes(nextNodes as any)
       setEdges(nextEdges as any)
-      setCollapsedIds((prev) => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
+      const nextCollapsed = new Set(collapsedRef.current)
+      nextCollapsed.delete(id)
+      collapsedRef.current = nextCollapsed
+      setCollapsedIds(nextCollapsed)
       setTimeout(() => persist(nextNodes as any, nextEdges as any), 0)
       showToast('Node deleted')
     },
@@ -265,11 +280,10 @@ export default function CanvasPage() {
       setEditingNode((cur) => (cur && ids.has(cur.id) ? null : cur))
       const nextEdges = (edges as any).filter((e: any) => !ids.has(e.source) && !ids.has(e.target))
       setEdges(nextEdges as any)
-      setCollapsedIds((prev) => {
-        const next = new Set(prev)
-        ids.forEach((id) => next.delete(id as string))
-        return next
-      })
+      const nextCollapsed = new Set(collapsedRef.current)
+      ids.forEach((nodeId) => nextCollapsed.delete(nodeId as string))
+      collapsedRef.current = nextCollapsed
+      setCollapsedIds(nextCollapsed)
       setTimeout(() => persist((nodes as any).filter((n: any) => !ids.has(n.id)), nextEdges as any), 0)
     },
     [nodes, edges, persist, setEdges],
@@ -408,7 +422,11 @@ export default function CanvasPage() {
             <span title={writable ? 'Quad storage: chrome.local + IndexedDB + chrome.sync + localStorage, auto-recovery' : 'A saved copy could not be read, so nothing was overwritten'} style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: writable ? '#111827' : '#f97316', border: `1px solid ${writable ? '#e6e8ee' : '#fdba74'}`, background: '#fff', padding: '3px 7px', borderRadius: 999 }}>{writable ? 'Persisted' : 'Not saved'}</span>
             {hiddenCount > 0 && (
               <button
-                onClick={() => setCollapsedIds(new Set())}
+                onClick={() => {
+                  collapsedRef.current = new Set()
+                  setCollapsedIds(new Set())
+                  if (activeProject) updateProject(projectWithCollapse(activeProject, activeProject.nodes.map((node) => node.id)))
+                }}
                 style={{ padding: '5px 8px', background: '#fff', border: '1px solid #e6e8ee', borderRadius: 8, cursor: 'pointer', fontSize: 11, color: '#111827' }}
               >
                 Expand all
